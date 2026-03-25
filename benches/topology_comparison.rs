@@ -1,8 +1,11 @@
+use std::f64::consts::PI;
 use std::hint::black_box;
 use std::time::Duration;
 
 use all_pairs_shortest_paths_benchmarks::{Graph, graph_label, random_weight, sampling_params};
-use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
+use criterion::{
+    BenchmarkGroup, BenchmarkId, Criterion, criterion_group, criterion_main, measurement::WallTime,
+};
 use geometric_traits::{
     impls::GenericImplicitValuedMatrix2D,
     prelude::{randomized_graphs::*, *},
@@ -53,122 +56,182 @@ macro_rules! bench_weighted {
     }};
 }
 
-macro_rules! bench_named {
-    ($group:expr, $name:expr, $graph:expr) => {{
-        let g: Graph = $graph;
-        eprintln!("  {}...", $name);
-        let lbl = format!("{}_{}", $name, graph_label(&g));
-        bench_all_unweighted!($group, lbl, g);
-    }};
-}
-
-macro_rules! bench_named_weighted {
-    ($group:expr, $name:expr, $graph:expr) => {{
-        let g: Graph = $graph;
-        eprintln!("  {}...", $name);
-        let lbl = format!("{}_{}", $name, graph_label(&g));
-        bench_weighted!($group, lbl, g);
-    }};
-}
-
 // All topology groups share the same set of topologies so radar charts have
 // consistent axes. Generators that cannot hit the exact target V produce the
-// closest possible value (e.g. grid 7x7 = 49 for V~50).
+// closest possible value (e.g. grid 7x7 = 49 for V~50). The fixed-size
+// Petersen graph is benchmarked separately in `extreme_cases.rs`.
 
-macro_rules! all_topologies {
-    ($macro:ident, $group:expr, $v:expr) => {
-        match $v {
-            50 => {
-                $macro!($group, "complete", complete_graph(50));
-                $macro!($group, "cycle", cycle_graph(50));
-                $macro!($group, "path", path_graph(50));
-                $macro!($group, "star", star_graph(50));
-                $macro!($group, "grid", grid_graph(7, 7));
-                $macro!($group, "torus", torus_graph(7, 7));
-                $macro!($group, "wheel", wheel_graph(49));
-                $macro!($group, "crown", crown_graph(25));
-                $macro!(
-                    $group,
-                    "complete_bipartite",
-                    complete_bipartite_graph(25, 25)
-                );
-                $macro!($group, "turan", turan_graph(50, 5));
-                $macro!($group, "friendship", friendship_graph(24));
-                $macro!($group, "er_sparse", erdos_renyi_gnp(42, 50, 0.05));
-                $macro!($group, "er_medium", erdos_renyi_gnp(42, 50, 0.2));
-                $macro!($group, "er_dense", erdos_renyi_gnp(42, 50, 0.5));
-                $macro!($group, "barabasi_albert", barabasi_albert(42, 50, 3));
-                $macro!($group, "watts_strogatz", watts_strogatz(42, 50, 6, 0.3));
-            }
-            100 => {
-                $macro!($group, "complete", complete_graph(100));
-                $macro!($group, "cycle", cycle_graph(100));
-                $macro!($group, "path", path_graph(100));
-                $macro!($group, "star", star_graph(100));
-                $macro!($group, "grid", grid_graph(10, 10));
-                $macro!($group, "torus", torus_graph(10, 10));
-                $macro!($group, "wheel", wheel_graph(99));
-                $macro!($group, "crown", crown_graph(50));
-                $macro!(
-                    $group,
-                    "complete_bipartite",
-                    complete_bipartite_graph(50, 50)
-                );
-                $macro!($group, "turan", turan_graph(100, 5));
-                $macro!($group, "friendship", friendship_graph(49));
-                $macro!($group, "er_sparse", erdos_renyi_gnp(42, 100, 0.05));
-                $macro!($group, "er_medium", erdos_renyi_gnp(42, 100, 0.2));
-                $macro!($group, "er_dense", erdos_renyi_gnp(42, 100, 0.5));
-                $macro!($group, "barabasi_albert", barabasi_albert(42, 100, 3));
-                $macro!($group, "watts_strogatz", watts_strogatz(42, 100, 6, 0.3));
-            }
-            200 => {
-                $macro!($group, "complete", complete_graph(200));
-                $macro!($group, "cycle", cycle_graph(200));
-                $macro!($group, "path", path_graph(200));
-                $macro!($group, "star", star_graph(200));
-                $macro!($group, "grid", grid_graph(14, 14));
-                $macro!($group, "torus", torus_graph(14, 14));
-                $macro!($group, "wheel", wheel_graph(199));
-                $macro!($group, "crown", crown_graph(100));
-                $macro!(
-                    $group,
-                    "complete_bipartite",
-                    complete_bipartite_graph(100, 100)
-                );
-                $macro!($group, "turan", turan_graph(200, 5));
-                $macro!($group, "friendship", friendship_graph(99));
-                $macro!($group, "er_sparse", erdos_renyi_gnp(42, 200, 0.05));
-                $macro!($group, "er_medium", erdos_renyi_gnp(42, 200, 0.2));
-                $macro!($group, "er_dense", erdos_renyi_gnp(42, 200, 0.5));
-                $macro!($group, "barabasi_albert", barabasi_albert(42, 200, 3));
-                $macro!($group, "watts_strogatz", watts_strogatz(42, 200, 6, 0.3));
-            }
-            500 => {
-                $macro!($group, "complete", complete_graph(500));
-                $macro!($group, "cycle", cycle_graph(500));
-                $macro!($group, "path", path_graph(500));
-                $macro!($group, "star", star_graph(500));
-                $macro!($group, "grid", grid_graph(22, 23));
-                $macro!($group, "torus", torus_graph(22, 23));
-                $macro!($group, "wheel", wheel_graph(499));
-                $macro!($group, "crown", crown_graph(250));
-                $macro!(
-                    $group,
-                    "complete_bipartite",
-                    complete_bipartite_graph(250, 250)
-                );
-                $macro!($group, "turan", turan_graph(500, 5));
-                $macro!($group, "friendship", friendship_graph(249));
-                $macro!($group, "er_sparse", erdos_renyi_gnp(42, 500, 0.02));
-                $macro!($group, "er_medium", erdos_renyi_gnp(42, 500, 0.1));
-                $macro!($group, "er_dense", erdos_renyi_gnp(42, 500, 0.4));
-                $macro!($group, "barabasi_albert", barabasi_albert(42, 500, 3));
-                $macro!($group, "watts_strogatz", watts_strogatz(42, 500, 6, 0.3));
-            }
-            _ => unreachable!(),
-        }
-    };
+fn grid_dims(target_vertices: usize) -> (usize, usize) {
+    match target_vertices {
+        50 => (7, 7),
+        100 => (10, 10),
+        200 => (14, 14),
+        500 => (22, 23),
+        _ => unreachable!(),
+    }
+}
+
+fn hexagonal_lattice_dims(target_vertices: usize) -> (usize, usize) {
+    match target_vertices {
+        50 => (4, 4),
+        100 => (6, 6),
+        200 => (9, 9),
+        500 => (15, 15),
+        _ => unreachable!(),
+    }
+}
+
+fn hypercube_dimension(target_vertices: usize) -> usize {
+    match target_vertices {
+        50 => 6,
+        100 => 7,
+        200 => 8,
+        500 => 9,
+        _ => unreachable!(),
+    }
+}
+
+fn windmill_k4_cliques(target_vertices: usize) -> usize {
+    match target_vertices {
+        50 => 16,
+        100 => 33,
+        200 => 66,
+        500 => 166,
+        _ => unreachable!(),
+    }
+}
+
+fn barbell_params(target_vertices: usize) -> (usize, usize) {
+    match target_vertices {
+        50 => (10, 30),
+        100 => (20, 60),
+        200 => (40, 120),
+        500 => (100, 300),
+        _ => unreachable!(),
+    }
+}
+
+fn imbalanced_bipartite_parts(target_vertices: usize) -> (usize, usize) {
+    let left = target_vertices / 5;
+    (left, target_vertices - left)
+}
+
+fn sparse_bipartite_probability(target_vertices: usize) -> f64 {
+    12.0 / target_vertices as f64
+}
+
+fn erdos_renyi_probabilities(target_vertices: usize) -> (f64, f64, f64) {
+    match target_vertices {
+        50 | 100 | 200 => (0.05, 0.2, 0.5),
+        500 => (0.02, 0.1, 0.4),
+        _ => unreachable!(),
+    }
+}
+
+fn random_geometric_radius(target_vertices: usize) -> f64 {
+    (6.0 / (PI * (target_vertices - 1) as f64)).sqrt()
+}
+
+fn topology_graphs(target_vertices: usize) -> Vec<(&'static str, Graph)> {
+    let (grid_rows, grid_cols) = grid_dims(target_vertices);
+    let (hex_rows, hex_cols) = hexagonal_lattice_dims(target_vertices);
+    let (barbell_clique_size, barbell_path_len) = barbell_params(target_vertices);
+    let (imbalanced_left, imbalanced_right) = imbalanced_bipartite_parts(target_vertices);
+    let (er_sparse_p, er_medium_p, er_dense_p) = erdos_renyi_probabilities(target_vertices);
+    let half = target_vertices / 2;
+
+    vec![
+        ("complete", complete_graph(target_vertices)),
+        ("path", path_graph(target_vertices)),
+        ("cycle", cycle_graph(target_vertices)),
+        ("star", star_graph(target_vertices)),
+        ("wheel", wheel_graph(target_vertices - 1)),
+        ("grid", grid_graph(grid_rows, grid_cols)),
+        ("torus", torus_graph(grid_rows, grid_cols)),
+        (
+            "hexagonal_lattice",
+            hexagonal_lattice_graph(hex_rows, hex_cols),
+        ),
+        (
+            "triangular_lattice",
+            triangular_lattice_graph(grid_rows, grid_cols),
+        ),
+        (
+            "hypercube",
+            hypercube_graph(hypercube_dimension(target_vertices)),
+        ),
+        ("turan", turan_graph(target_vertices, 5)),
+        ("friendship", friendship_graph((target_vertices - 1) / 2)),
+        (
+            "windmill_k4",
+            windmill_graph(windmill_k4_cliques(target_vertices), 4),
+        ),
+        (
+            "barbell",
+            barbell_graph(barbell_clique_size, barbell_path_len),
+        ),
+        ("complete_bipartite", complete_bipartite_graph(half, half)),
+        (
+            "complete_bipartite_imbalanced",
+            complete_bipartite_graph(imbalanced_left, imbalanced_right),
+        ),
+        ("crown", crown_graph(half)),
+        (
+            "random_sparse_bipartite",
+            stochastic_block_model(
+                42,
+                &[half, half],
+                0.0,
+                sparse_bipartite_probability(target_vertices),
+            ),
+        ),
+        (
+            "er_sparse",
+            erdos_renyi_gnp(42, target_vertices, er_sparse_p),
+        ),
+        (
+            "er_medium",
+            erdos_renyi_gnp(42, target_vertices, er_medium_p),
+        ),
+        ("er_dense", erdos_renyi_gnp(42, target_vertices, er_dense_p)),
+        ("barabasi_albert", barabasi_albert(42, target_vertices, 3)),
+        (
+            "watts_strogatz",
+            watts_strogatz(42, target_vertices, 6, 0.3),
+        ),
+        (
+            "stochastic_block_model",
+            stochastic_block_model(42, &[half, half], 0.3, 0.01),
+        ),
+        (
+            "random_geometric",
+            random_geometric_graph(
+                42,
+                target_vertices,
+                random_geometric_radius(target_vertices),
+            ),
+        ),
+        (
+            "random_regular_k4",
+            random_regular_graph(42, target_vertices, 4),
+        ),
+    ]
+}
+
+fn bench_topologies_unweighted(group: &mut BenchmarkGroup<'_, WallTime>, target_vertices: usize) {
+    for (name, graph) in topology_graphs(target_vertices) {
+        eprintln!("  {}...", name);
+        let lbl = format!("{}_{}", name, graph_label(&graph));
+        bench_all_unweighted!(group, lbl, graph);
+    }
+}
+
+fn bench_topologies_weighted(group: &mut BenchmarkGroup<'_, WallTime>, target_vertices: usize) {
+    for (name, graph) in topology_graphs(target_vertices) {
+        eprintln!("  {}...", name);
+        let lbl = format!("{}_{}", name, graph_label(&graph));
+        bench_weighted!(group, lbl, graph);
+    }
 }
 
 fn bench_topology_v50(c: &mut Criterion) {
@@ -178,7 +241,7 @@ fn bench_topology_v50(c: &mut Criterion) {
     group
         .sample_size(samples)
         .measurement_time(Duration::from_secs(secs));
-    all_topologies!(bench_named, group, 50);
+    bench_topologies_unweighted(&mut group, 50);
     group.finish();
 }
 
@@ -189,7 +252,7 @@ fn bench_topology_v100(c: &mut Criterion) {
     group
         .sample_size(samples)
         .measurement_time(Duration::from_secs(secs));
-    all_topologies!(bench_named, group, 100);
+    bench_topologies_unweighted(&mut group, 100);
     group.finish();
 }
 
@@ -200,7 +263,7 @@ fn bench_topology_v200(c: &mut Criterion) {
     group
         .sample_size(samples)
         .measurement_time(Duration::from_secs(secs));
-    all_topologies!(bench_named, group, 200);
+    bench_topologies_unweighted(&mut group, 200);
     group.finish();
 }
 
@@ -211,7 +274,7 @@ fn bench_topology_v500(c: &mut Criterion) {
     group
         .sample_size(samples)
         .measurement_time(Duration::from_secs(secs));
-    all_topologies!(bench_named, group, 500);
+    bench_topologies_unweighted(&mut group, 500);
     group.finish();
 }
 
@@ -222,7 +285,7 @@ fn bench_topology_v50_weighted(c: &mut Criterion) {
     group
         .sample_size(samples)
         .measurement_time(Duration::from_secs(secs));
-    all_topologies!(bench_named_weighted, group, 50);
+    bench_topologies_weighted(&mut group, 50);
     group.finish();
 }
 
@@ -233,7 +296,7 @@ fn bench_topology_v100_weighted(c: &mut Criterion) {
     group
         .sample_size(samples)
         .measurement_time(Duration::from_secs(secs));
-    all_topologies!(bench_named_weighted, group, 100);
+    bench_topologies_weighted(&mut group, 100);
     group.finish();
 }
 
@@ -244,7 +307,7 @@ fn bench_topology_v200_weighted(c: &mut Criterion) {
     group
         .sample_size(samples)
         .measurement_time(Duration::from_secs(secs));
-    all_topologies!(bench_named_weighted, group, 200);
+    bench_topologies_weighted(&mut group, 200);
     group.finish();
 }
 
@@ -255,7 +318,7 @@ fn bench_topology_v500_weighted(c: &mut Criterion) {
     group
         .sample_size(samples)
         .measurement_time(Duration::from_secs(secs));
-    all_topologies!(bench_named_weighted, group, 500);
+    bench_topologies_weighted(&mut group, 500);
     group.finish();
 }
 

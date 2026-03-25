@@ -69,7 +69,7 @@ def parse_estimates(criterion_dir: Path) -> dict[str, dict[str, float]]:
 
         # Extract topology name from the parameter part
         param = "/".join(parts[3:]) if len(parts) > 3 else ""
-        topo_match = re.match(r"^([a-z_]+)_V\d+", param)
+        topo_match = re.match(r"^(.+?)_V\d+", param)
         if topo_match:
             topology = topo_match.group(1)
         else:

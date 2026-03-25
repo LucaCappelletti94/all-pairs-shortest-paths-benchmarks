@@ -1,7 +1,7 @@
 use std::hint::black_box;
 use std::time::Duration;
 
-use all_pairs_shortest_paths_benchmarks::{Graph, graph_label, sampling_params};
+use all_pairs_shortest_paths_benchmarks::{Graph, graph_label, random_weight, sampling_params};
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use geometric_traits::{
     impls::GenericImplicitValuedMatrix2D,
@@ -32,8 +32,29 @@ macro_rules! bench_all_unweighted {
     }};
 }
 
+macro_rules! bench_weighted {
+    ($group:expr, $label:expr, $graph:expr) => {{
+        let graph = &$graph;
+        let weighted = GenericImplicitValuedMatrix2D::new(graph.clone(), random_weight(42));
+        $group.bench_with_input(
+            BenchmarkId::new("FloydWarshall", &$label),
+            &weighted,
+            |b, v| {
+                b.iter(|| black_box(v.floyd_warshall().unwrap()));
+            },
+        );
+        $group.bench_with_input(
+            BenchmarkId::new("PairwiseDijkstra", &$label),
+            &weighted,
+            |b, v| {
+                b.iter(|| black_box(v.pairwise_dijkstra().unwrap()));
+            },
+        );
+    }};
+}
+
 fn bench_barbell(c: &mut Criterion) {
-    eprintln!("[1/7] Running extreme/barbell benchmarks...");
+    eprintln!("[1/9] Running extreme/barbell benchmarks...");
     let mut group = c.benchmark_group("extreme/barbell");
 
     for (k, p) in [
@@ -61,7 +82,7 @@ fn bench_barbell(c: &mut Criterion) {
 }
 
 fn bench_hypercube(c: &mut Criterion) {
-    eprintln!("[2/7] Running extreme/hypercube benchmarks...");
+    eprintln!("[2/9] Running extreme/hypercube benchmarks...");
     let mut group = c.benchmark_group("extreme/hypercube");
 
     for d in [4usize, 6, 8] {
@@ -81,7 +102,7 @@ fn bench_hypercube(c: &mut Criterion) {
 }
 
 fn bench_star(c: &mut Criterion) {
-    eprintln!("[3/7] Running extreme/star benchmarks...");
+    eprintln!("[3/9] Running extreme/star benchmarks...");
     let mut group = c.benchmark_group("extreme/star");
 
     for n in [50usize, 100, 200, 500, 750, 1000] {
@@ -100,7 +121,7 @@ fn bench_star(c: &mut Criterion) {
 }
 
 fn bench_path(c: &mut Criterion) {
-    eprintln!("[4/7] Running extreme/path benchmarks...");
+    eprintln!("[4/9] Running extreme/path benchmarks...");
     let mut group = c.benchmark_group("extreme/path");
 
     for n in [50usize, 100, 200, 500, 750, 1000] {
@@ -119,7 +140,7 @@ fn bench_path(c: &mut Criterion) {
 }
 
 fn bench_cycle(c: &mut Criterion) {
-    eprintln!("[5/7] Running extreme/cycle benchmarks...");
+    eprintln!("[5/9] Running extreme/cycle benchmarks...");
     let mut group = c.benchmark_group("extreme/cycle");
 
     for n in [50usize, 100, 200, 500, 750, 1000] {
@@ -138,7 +159,7 @@ fn bench_cycle(c: &mut Criterion) {
 }
 
 fn bench_crown(c: &mut Criterion) {
-    eprintln!("[6/7] Running extreme/crown benchmarks...");
+    eprintln!("[6/9] Running extreme/crown benchmarks...");
     let mut group = c.benchmark_group("extreme/crown");
 
     for n in [10usize, 25, 50, 75, 100] {
@@ -158,7 +179,7 @@ fn bench_crown(c: &mut Criterion) {
 }
 
 fn bench_complete_bipartite(c: &mut Criterion) {
-    eprintln!("[7/7] Running extreme/complete_bipartite benchmarks...");
+    eprintln!("[7/9] Running extreme/complete_bipartite benchmarks...");
     let mut group = c.benchmark_group("extreme/complete_bipartite");
 
     for (m, n) in [
@@ -184,6 +205,38 @@ fn bench_complete_bipartite(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_petersen(c: &mut Criterion) {
+    eprintln!("[8/9] Running extreme/petersen benchmarks...");
+    let mut group = c.benchmark_group("extreme/petersen");
+    let (samples, secs) = sampling_params(10);
+    group
+        .sample_size(samples)
+        .measurement_time(Duration::from_secs(secs));
+
+    eprintln!("  Generating petersen_graph()...");
+    let g: Graph = petersen_graph();
+    let lbl = graph_label(&g);
+    bench_all_unweighted!(group, lbl, g);
+
+    group.finish();
+}
+
+fn bench_petersen_weighted(c: &mut Criterion) {
+    eprintln!("[9/9] Running extreme/petersen_weighted benchmarks...");
+    let mut group = c.benchmark_group("extreme/petersen_weighted");
+    let (samples, secs) = sampling_params(10);
+    group
+        .sample_size(samples)
+        .measurement_time(Duration::from_secs(secs));
+
+    eprintln!("  Generating petersen_graph()...");
+    let g: Graph = petersen_graph();
+    let lbl = graph_label(&g);
+    bench_weighted!(group, lbl, g);
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_barbell,
@@ -193,5 +246,7 @@ criterion_group!(
     bench_cycle,
     bench_crown,
     bench_complete_bipartite,
+    bench_petersen,
+    bench_petersen_weighted,
 );
 criterion_main!(benches);
