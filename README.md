@@ -5,21 +5,21 @@
 
 ## Abstract
 
-We benchmark three all-pairs shortest-path algorithms, Floyd-Warshall \[1,2\], Pairwise BFS \[3\], and Pairwise Dijkstra \[4\], from the [`geometric-traits`](https://github.com/earth-metabolome-initiative/geometric-traits) crate across 932 measurements in 47 benchmark groups. On unweighted graphs, Pairwise BFS is the fastest algorithm at every tested configuration, beating Floyd-Warshall by 1.2x on complete graphs and up to 183.7x on star graphs. On weighted graphs, there is a density-dependent crossover: Pairwise Dijkstra is faster on sparse graphs (up to 15.3x over Floyd-Warshall), while Floyd-Warshall wins on dense graphs (up to 2.4x faster on complete graphs at V=500). The weighted crossover occurs near edge probability p = 0.35 for V=500.
+We benchmark three all-pairs shortest-path algorithms, Floyd-Warshall \[1,2\], Pairwise BFS \[3\], and Pairwise Dijkstra \[4\], from the [`geometric-traits`](https://github.com/earth-metabolome-initiative/geometric-traits) crate across **1,137 measurements in 49 benchmark groups**. Using Criterion mean point estimates, Pairwise BFS is fastest in all but one unweighted configuration, spanning dense complete graphs and sparse windmill, lattice, and random-regular families; the sole point-estimate exception is `cycle_V200`, where Pairwise Dijkstra is ahead by less than 1%. One additional case, `path_V500`, has overlapping marginal confidence intervals for BFS and Dijkstra, so it is not cleanly separable from Criterion's reported intervals alone. The largest measured speedup is **195.0x** on a 1,000-node star graph. On weighted graphs, point-estimate winners are both density- and size-dependent: at larger tested sizes Pairwise Dijkstra wins the sparse and medium-density cases, while Floyd-Warshall still wins the densest regimes; at `V=50`, however, Floyd-Warshall wins every sampled weighted density. These conclusions are specific to the `geometric-traits` implementations, graph representation, deterministic weighting scheme, sampled generator seeds, and host environment described below. At `V~500`, Dijkstra is the point-estimate winner on **21 of 26** topology families, while Floyd-Warshall wins the five densest cases: complete, complete bipartite, crown, dense Erdős-Rényi, and Turan.
 
 ## Visual Summary
 
 <p align="center">
-  <img src="docs/radar_triptych.svg" alt="Radar chart showing unweighted algorithm performance across topologies at V~50, V~100, V~200, and V~500" width="100%">
+  <img src="docs/radar_triptych.svg" alt="Radar chart showing unweighted algorithm performance across 26 topology families at V~50, V~100, V~200, and V~500" width="100%">
 </p>
 
-Each axis represents a graph topology; a larger polygon means faster (log-scale). BFS (blue) envelops both FW (red) and Dijkstra (green) at all sizes. The gap widens from V=50 to V=500. The three density variants (er\_sparse, er\_medium, er\_dense) show the gap narrowing as density increases.
+The unweighted radar is strongly BFS-favored. At `V~200`, `cycle` slightly favors Dijkstra by point estimate; at `V~500`, `path` is a near-tie whose BFS and Dijkstra marginal confidence intervals overlap. The newly added structured families, especially `windmill_k4`, `hexagonal_lattice`, `triangular_lattice`, and `hypercube`, preserve the broader BFS-favored pattern.
 
 <p align="center">
-  <img src="docs/radar_weighted.svg" alt="Radar chart showing weighted algorithm performance (FW vs Dijkstra) across topologies at V~50, V~100, V~200, and V~500" width="100%">
+  <img src="docs/radar_weighted.svg" alt="Radar chart showing weighted Floyd-Warshall vs Pairwise Dijkstra performance across 26 topology families at V~50, V~100, V~200, and V~500" width="100%">
 </p>
 
-In the weighted case, Dijkstra (green) is faster on sparse topologies (star, path, cycle) while Floyd-Warshall (red) wins on dense ones (complete, turan, er\_dense). The polygons cross over as density increases. At V=500 on er\_dense, FW wins by only 1.1x.
+The weighted radar shows a clear sparse-versus-dense split. At `V~500`, Dijkstra is the point-estimate winner on 21 of 26 topology families, including the tested path-like, lattice, windmill, wheel, friendship, and Barabási-Albert cases, while Floyd-Warshall is the point-estimate winner on the dense complete, multipartite, and dense random cases.
 
 ## Algorithms Overview
 
@@ -29,446 +29,475 @@ In the weighted case, Dijkstra (green) is faster on sparse topologies (star, pat
 | Pairwise BFS | O(V · (V + E)) | Unweighted | Breadth-first search from each source vertex |
 | Pairwise Dijkstra | O(V · (V + E) · log V) | Weighted (non-negative) | Dijkstra's algorithm from each source vertex |
 
-**Floyd-Warshall** \[1,2\] considers every vertex as a potential intermediate stop. It requires O(V³) time regardless of edge count but benefits from cache-friendly sequential memory access.
+**Floyd-Warshall** \[1,2\] considers every vertex as an intermediate pivot. Its runtime is independent of sparsity, which makes it predictable and competitive once graphs become very dense.
 
-**Pairwise BFS** \[3\] runs one BFS per source vertex. On sparse graphs where E = O(V), total cost is O(V²), which is asymptotically better than Floyd-Warshall. It requires unweighted edges.
+**Pairwise BFS** \[3\] runs one BFS per source. On sparse unweighted graphs it is asymptotically better than Floyd-Warshall.
 
-**Pairwise Dijkstra** \[4\] runs Dijkstra's algorithm per source vertex. The binary-heap overhead adds a log V factor over BFS, but it handles arbitrary non-negative edge weights.
+**Pairwise Dijkstra** \[4\] runs Dijkstra from each source and supports non-negative edge weights.
 
-## Graph Types
+## Graph Families
 
-### Classical Structures
+### Structured / Classical
 
-- **Complete graph** K_n: n vertices, n(n-1)/2 edges, diameter 1
-- **Cycle graph** C_n: n vertices, n edges, diameter ⌊n/2⌋
-- **Path graph** P_n: n vertices, n-1 edges, diameter n-1
-- **Star graph** S_n: n vertices, n-1 edges, diameter 2
-- **Grid graph** G(r,c): r·c vertices, ~2rc edges, diameter r+c-2
-- **Torus graph** T(r,c): r·c vertices, 2rc edges, diameter ⌊r/2⌋+⌊c/2⌋
-- **Wheel graph** W_n: n+1 vertices, 2n edges, diameter 2
+- **Complete graph** `K_n`: `n` vertices, `n(n-1)/2` edges, diameter `1`
+- **Path graph** `P_n`: `n` vertices, `n-1` edges, diameter `n-1`
+- **Cycle graph** `C_n`: `n` vertices, `n` edges, diameter `⌊n/2⌋`
+- **Star graph** `S_n`: `n` vertices, `n-1` edges, diameter `2`
+- **Wheel graph** `W_n`: `n+1` vertices, `2n` edges, diameter `2`
+- **Grid graph** `G(r,c)`: `r·c` vertices, roughly `2rc-r-c` edges
+- **Torus graph** `T(r,c)`: `r·c` vertices, `2rc` edges
+- **Hexagonal lattice**: benzenoid-style fused-hexagon lattice
+- **Triangular lattice**: grid with alternating diagonals
+- **Hypercube** `Q_d`: `2^d` vertices, `d·2^(d-1)` edges
+- **Petersen graph**: fixed 10-vertex, 15-edge canonical cubic graph
+- **Turan graph** `T(n,r)`: densest graph with no `(r+1)`-clique
+- **Friendship graph** `F_n`: `2n+1` vertices, `n` triangles sharing one hub
+- **Windmill K4**: `n` copies of `K4` glued at one shared hub vertex
+- **Barbell graph** `B(k,p)`: two `K_k` cliques connected by a bridge with `p` intermediate vertices in the benchmark convention (`|V| = 2k + p`)
 
-### Bipartite and Dense Structures
+### Bipartite / Multipartite
 
-- **Crown graph** Crown(n): 2n vertices, n(n-1) edges, a bipartite complement of a perfect matching
-- **Complete bipartite** K_{m,n}: m+n vertices, mn edges
-- **Turan graph** T(n,r): n vertices, the densest graph without (r+1)-cliques
+- **Complete bipartite** `K_{m,n}`
+- **Imbalanced complete bipartite**: `K_{m,n}` with strongly skewed partitions
+- **Crown graph**: `K_{n,n}` minus a perfect matching
+- **Random sparse bipartite**: two blocks with zero intra-block probability and sparse inter-block connectivity
 
-### Composite Structures
+### Random / Model Families
 
-- **Barbell graph** B(k,p): two K_k cliques connected by a path of length p
-- **Friendship graph** F_n: 2n+1 vertices, n triangles sharing a common vertex
-- **Hypercube** Q_d: 2^d vertices, d·2^(d-1) edges
+- **Erdős-Rényi `G(n,m)`** \[5\]: fixed edge budget, used for size scaling
+- **Erdős-Rényi `G(n,p)`** \[5\]: fixed edge probability, used for density and topology comparisons
+- **Barabási-Albert** \[6\]: preferential attachment
+- **Watts-Strogatz** \[7\]: small-world rewired ring lattice
+- **Stochastic block model** \[8\]: planted community structure
+- **Random geometric graph**: Euclidean locality in `[0,1]^2`
+- **Random regular `k=4`**: uniform degree-4 random graph
 
-### Random Graph Models
+Together, these families vary several structural axes that are plausible APSP performance drivers: density, degree regularity, geometric locality, bipartite/community structure, and network-science generative models. The suite is broad rather than exhaustive; the aim is to expose one implementation stack to qualitatively different shortest-path workloads under a consistent representation and benchmark harness.
 
-- **Erdős-Rényi** G(n,p) \[5\]: each edge included independently with probability p
-- **Barabási-Albert** BA(n,m) \[6\]: preferential attachment, produces scale-free networks
-- **Watts-Strogatz** WS(n,k,β) \[7\]: ring lattice with random rewiring, produces small-world networks
-- **Stochastic Block Model** SBM \[8\]: community structure with intra- and inter-community edge probabilities
-- **Random Geometric** RGG(n,r): vertices placed uniformly in \[0,1\]², edges between points within distance r
-- **Random Regular** RR(n,k): uniformly random k-regular graph
+## Study Goals
+
+- **Size scaling:** measure how runtime changes with graph order under fixed sparse, medium, dense, complete, and grid-like regimes.
+- **Density scaling:** locate sparse-versus-dense crossover behavior at fixed graph order as edge probability increases.
+- **Topology comparison:** compare natural generator families at the same rough problem scale, even when exact order matching is impossible for some discrete constructions.
+- **Real-world models:** compare common network-generator families under sparse-to-medium parameter settings that stay within their typical operating regimes.
+- **Extreme cases:** stress the implementations with deliberately pathological or highly symmetric structures rather than everyday workloads.
 
 ## Headline Results
 
-The 12 largest speedup ratios observed across all 932 measurements:
+Unless noted otherwise, the tables below report Criterion mean point estimates from `target/criterion/**/new/estimates.json`.
 
-| Graph | \|V\| | \|E\| | Faster | Slower | Winner | Speedup |
-|:--|--:|--:|--:|--:|:--|--:|
-| Star | 1,000 | 999 | **4.57 ms** (BFS) | 840 ms (FW) | BFS | **183.7x** |
-| Star | 750 | 749 | **2.39 ms** (BFS) | 360 ms (FW) | BFS | **150.4x** |
-| Star | 500 | 499 | **1.07 ms** (BFS) | 112 ms (FW) | BFS | **104.7x** |
-| Star (topology) | 500 | 499 | **1.07 ms** (BFS) | 92.7 ms (FW) | BFS | **87.1x** |
-| Friendship | 499 | 747 | **1.18 ms** (BFS) | 92.4 ms (FW) | BFS | **78.6x** |
-| Wheel | 500 | 998 | **1.29 ms** (BFS) | 91.4 ms (FW) | BFS | **70.7x** |
-| BA m=2 | 750 | 1,497 | **6.56 ms** (BFS) | 371 ms (FW) | BFS | **56.6x** |
-| Grid | 625 | 1,200 | **2.21 ms** (BFS) | 102 ms (FW) | BFS | **46.0x** |
-| Path | 1,000 | 999 | **7.18 ms** (BFS) | 325 ms (FW) | BFS | **45.2x** |
-| Path (weighted) | 500 | 499 | **3.29 ms** (Dij) | 50.5 ms (FW) | Dijkstra | **15.3x** |
-| Cycle (weighted) | 500 | 500 | **3.77 ms** (Dij) | 51.0 ms (FW) | Dijkstra | **13.5x** |
-| Star (weighted) | 500 | 499 | **9.67 ms** (Dij) | 119 ms (FW) | Dijkstra | **12.3x** |
+The 12 largest measured slowdowns of the slower APSP algorithm relative to the faster one:
 
-BFS accounts for the largest speedups because unweighted APSP is O(V(V+E)) vs O(V³). For weighted graphs, Dijkstra is up to 15.3x faster than Floyd-Warshall on sparse topologies.
+| Suite | Configuration | \|V\| | \|E\| | Faster | Slower | Winner | Speedup |
+|:--|:--|--:|--:|--:|--:|:--|--:|
+| `extreme_star` | `V1000_E999` | 1000 | 999 | **4.43 ms** | 863.39 ms | BFS | **195.0x** |
+| `extreme_star` | `V750_E749` | 750 | 749 | **2.46 ms** | 351.11 ms | BFS | **142.9x** |
+| `extreme_star` | `V500_E499` | 500 | 499 | **1.14 ms** | 111.18 ms | BFS | **97.6x** |
+| `topology_V500` | `star_V500_E499` | 500 | 499 | **1.19 ms** | 92.06 ms | BFS | **77.6x** |
+| `topology_V500` | `friendship_V499_E747` | 499 | 747 | **1.26 ms** | 90.93 ms | BFS | **72.0x** |
+| `topology_V500` | `wheel_V500_E998` | 500 | 998 | **1.39 ms** | 92.58 ms | BFS | **66.7x** |
+| `topology_V500` | `windmill_k4_V499_E996` | 499 | 996 | **1.39 ms** | 91.29 ms | BFS | **65.5x** |
+| `realworld_barabasi_albert_m2` | `V750_E1497` | 750 | 1497 | **6.98 ms** | 406.89 ms | BFS | **58.3x** |
+| `extreme_path` | `V1000_E999` | 1000 | 999 | **6.80 ms** | 328.12 ms | BFS | **48.2x** |
+| `size_grid` | `V625_E1200` | 625 | 1200 | **2.33 ms** | 107.61 ms | BFS | **46.2x** |
+| `extreme_star` | `V200_E199` | 200 | 199 | **176.1 us** | 7.26 ms | BFS | **41.2x** |
+| `realworld_barabasi_albert_m2` | `V500_E997` | 500 | 997 | **2.86 ms** | 117.50 ms | BFS | **41.1x** |
+
+By point estimate, BFS wins essentially the entire unweighted suite. The new structured additions broaden the same story: `windmill_k4`, `hypercube`, `hexagonal_lattice`, and `triangular_lattice` are all BFS wins by point estimate, with `cycle_V200` the lone Dijkstra exception and `path_V500` the closest near-tie.
 
 <p align="center">
-  <img src="docs/speedup_heatmap.svg" alt="Heatmap showing Floyd-Warshall / BFS slowdown factor across topologies and vertex counts" width="80%">
+  <img src="docs/speedup_heatmap.svg" alt="Heatmap showing Floyd-Warshall divided by BFS time across topology families and vertex counts" width="85%">
 </p>
 
 ## Size Scaling
-
-Performance as graph size increases at fixed density levels.
 
 <p align="center">
   <img src="docs/scaling_with_size.svg" alt="Log-log scaling plots for sparse, medium, dense, complete, and grid graphs" width="100%">
 </p>
 
-### Sparse Random Graphs (d ~ 6)
+### Sparse Random Graphs (`G(n, 3n)`)
 
-Erdős-Rényi G(n, 3n), average degree approximately 6.
+| \|V\| | \|E\| | BFS | FW | Dijkstra |
+|--:|--:|--:|--:|--:|
+| 10 | 30 | **631 ns** | 1.2 us | 1.6 us |
+| 20 | 60 | **2.6 us** | 7.6 us | 6.7 us |
+| 50 | 150 | **15.9 us** | 99.4 us | 65.9 us |
+| 100 | 300 | **142.9 us** | 751.3 us | 379.3 us |
+| 200 | 600 | **649.4 us** | 5.88 ms | 1.69 ms |
+| 300 | 900 | **1.52 ms** | 19.36 ms | 3.96 ms |
+| 500 | 1500 | **4.34 ms** | 87.65 ms | 11.91 ms |
+| 750 | 2250 | **10.64 ms** | 281.36 ms | 27.84 ms |
+| 1000 | 3000 | **18.34 ms** | 716.09 ms | 49.94 ms |
 
-| \|V\| | \|E\| | BFS | FW | Dijkstra | Winner | Speedup |
-|--:|--:|--:|--:|--:|:--|--:|
-| 10 | 30 | **601 ns** | 1.10 us | 1.45 us | BFS | 2.4x |
-| 20 | 60 | **2.40 us** | 7.29 us | 6.22 us | BFS | 3.0x |
-| 50 | 150 | **15.3 us** | 94.6 us | 63.8 us | BFS | 6.2x |
-| 100 | 300 | **138 us** | 703 us | 364 us | BFS | 5.1x |
-| 200 | 600 | **622 us** | 5.75 ms | 1.67 ms | BFS | 9.2x |
-| 300 | 900 | **1.47 ms** | 18.0 ms | 3.83 ms | BFS | 12.2x |
-| 500 | 1,500 | **4.20 ms** | 84.0 ms | 11.2 ms | BFS | 20.0x |
-| 750 | 2,250 | **9.59 ms** | 278 ms | 26.6 ms | BFS | 29.0x |
-| 1,000 | 3,000 | **17.7 ms** | 651 ms | 49.5 ms | BFS | 36.8x |
+### Medium Random Graphs (`G(n, 10n)`)
 
-BFS is faster at all sizes tested. The gap grows with V because FW is O(V³) while BFS is O(V(V+E)) = O(V²) for fixed average degree.
+| \|V\| | \|E\| | BFS | FW | Dijkstra |
+|--:|--:|--:|--:|--:|
+| 50 | 500 | **41.4 us** | 130.8 us | 97.6 us |
+| 100 | 1000 | **202.7 us** | 994.3 us | 480.0 us |
+| 200 | 2000 | **894.4 us** | 7.56 ms | 2.14 ms |
+| 300 | 3000 | **2.06 ms** | 25.02 ms | 5.00 ms |
+| 500 | 5000 | **5.91 ms** | 113.37 ms | 14.51 ms |
+| 750 | 7500 | **13.78 ms** | 383.49 ms | 33.95 ms |
 
-### Medium Random Graphs (d ~ 20)
+### Dense Random Graphs (`E = V² / 4`)
 
-Erdős-Rényi G(n, 10n), average degree approximately 20.
-
-| \|V\| | \|E\| | BFS | FW | Dijkstra | Winner | Speedup |
-|--:|--:|--:|--:|--:|:--|--:|
-| 50 | 500 | **39.5 us** | 153 us | 91.8 us | BFS | 3.9x |
-| 100 | 1,000 | **214 us** | 944 us | 456 us | BFS | 4.4x |
-| 200 | 2,000 | **864 us** | 7.28 ms | 2.03 ms | BFS | 8.4x |
-| 300 | 3,000 | **1.97 ms** | 24.0 ms | 4.97 ms | BFS | 12.2x |
-| 500 | 5,000 | **5.90 ms** | 109 ms | 13.9 ms | BFS | 18.4x |
-| 750 | 7,500 | **13.0 ms** | 364 ms | 32.4 ms | BFS | 28.0x |
-
-### Dense Random Graphs (E = V²/4)
-
-Erdős-Rényi G(n, n²/4), edge count proportional to V².
-
-| \|V\| | \|E\| | BFS | FW | Dijkstra | Winner | Speedup |
-|--:|--:|--:|--:|--:|:--|--:|
-| 20 | 100 | **3.73 us** | 8.12 us | 9.09 us | BFS | 2.4x |
-| 50 | 625 | **51.2 us** | 123 us | 103 us | BFS | 2.4x |
-| 100 | 2,500 | **310 us** | 954 us | 648 us | BFS | 3.1x |
-| 200 | 10,000 | **2.19 ms** | 7.48 ms | 4.15 ms | BFS | 3.4x |
-| 300 | 22,500 | **7.35 ms** | 24.9 ms | 12.9 ms | BFS | 3.4x |
-| 500 | 62,500 | **32.3 ms** | 113 ms | 54.4 ms | BFS | 3.5x |
-
-At half-density, BFS is still 3-4x faster than FW. The gap stabilizes because both algorithms approach O(V³).
+| \|V\| | \|E\| | BFS | FW | Dijkstra |
+|--:|--:|--:|--:|--:|
+| 20 | 100 | **3.8 us** | 10.0 us | 8.9 us |
+| 50 | 625 | **48.6 us** | 163.2 us | 117.0 us |
+| 100 | 2500 | **314.8 us** | 1.10 ms | 680.5 us |
+| 200 | 10000 | **2.30 ms** | 8.27 ms | 4.37 ms |
+| 300 | 22500 | **7.35 ms** | 26.53 ms | 13.36 ms |
+| 500 | 62500 | **33.58 ms** | 120.94 ms | 57.18 ms |
 
 ### Complete Graphs
 
-K_n, the densest possible graph.
-
-| \|V\| | \|E\| | BFS | FW | Dijkstra | Winner | Speedup |
-|--:|--:|--:|--:|--:|:--|--:|
-| 10 | 45 | **806 ns** | 995 ns | 1.72 us | BFS | 2.1x |
-| 20 | 190 | **5.03 us** | 6.43 us | 11.2 us | BFS | 2.2x |
-| 50 | 1,225 | **63.4 us** | 96.9 us | 144 us | BFS | 2.3x |
-| 100 | 4,950 | **514 us** | 737 us | 959 us | BFS | 1.9x |
-| 150 | 11,175 | **1.69 ms** | 2.42 ms | 2.96 ms | BFS | 1.8x |
-| 200 | 19,900 | **3.83 ms** | 5.72 ms | 6.78 ms | BFS | 1.8x |
-| 300 | 44,850 | **15.9 ms** | 19.0 ms | 21.7 ms | BFS | 1.4x |
-
-On complete graphs, BFS is 1.4-2.3x faster than FW. This is the tightest race: E = V(V-1)/2 makes BFS cost O(V(V+E)) = O(V³), matching FW's complexity class. BFS still wins because it has simpler per-operation overhead (no distance addition or comparison).
+| \|V\| | \|E\| | BFS | FW | Dijkstra |
+|--:|--:|--:|--:|--:|
+| 10 | 45 | **798 ns** | 1.0 us | 1.8 us |
+| 20 | 190 | **5.1 us** | 6.6 us | 12.2 us |
+| 50 | 1225 | **67.1 us** | 101.6 us | 170.8 us |
+| 100 | 4950 | **552.0 us** | 767.8 us | 1.18 ms |
+| 150 | 11175 | **1.75 ms** | 2.53 ms | 3.77 ms |
+| 200 | 19900 | **4.06 ms** | 5.95 ms | 8.60 ms |
+| 300 | 44850 | **13.41 ms** | 19.86 ms | 28.12 ms |
 
 ### Grid Graphs
 
-G(k,k), k × k grid with ~2k² edges.
-
-| \|V\| | \|E\| | BFS | FW | Dijkstra | Winner | Speedup |
-|--:|--:|--:|--:|--:|:--|--:|
-| 9 | 12 | **425 ns** | 603 ns | 945 ns | BFS | 2.2x |
-| 25 | 40 | **2.98 us** | 10.4 us | 7.61 us | BFS | 3.5x |
-| 49 | 84 | **11.2 us** | 69.9 us | 35.2 us | BFS | 6.2x |
-| 100 | 180 | **60.2 us** | 502 us | 185 us | BFS | 8.3x |
-| 225 | 420 | **301 us** | 5.10 ms | 1.01 ms | BFS | 17.0x |
-| 400 | 760 | **970 us** | 28.1 ms | 3.51 ms | BFS | 29.0x |
-| 625 | 1,200 | **2.21 ms** | 102 ms | 8.75 ms | BFS | 46.0x |
-
-### Weighted Size Scaling (FW vs Dijkstra)
+| \|V\| | \|E\| | BFS | FW | Dijkstra |
+|--:|--:|--:|--:|--:|
+| 9 | 12 | **447 ns** | 710 ns | 999 ns |
+| 25 | 40 | **3.1 us** | 10.0 us | 8.1 us |
+| 49 | 84 | **11.8 us** | 73.7 us | 37.5 us |
+| 100 | 180 | **63.7 us** | 531.3 us | 198.1 us |
+| 225 | 420 | **313.6 us** | 5.43 ms | 1.08 ms |
+| 400 | 760 | **948.9 us** | 29.11 ms | 3.62 ms |
+| 625 | 1200 | **2.33 ms** | 107.61 ms | 9.06 ms |
 
 <p align="center">
-  <img src="docs/scaling_with_size_weighted.svg" alt="Weighted scaling: FW vs Dijkstra across density levels" width="100%">
+  <img src="docs/scaling_with_size_weighted.svg" alt="Weighted scaling plots for sparse, medium, dense, complete, and grid graphs" width="100%">
 </p>
 
-On weighted sparse graphs, Dijkstra is 8.0x faster at V=1000 (sparse d6). On weighted complete graphs, FW wins at all tested sizes: 3.7x at V=10, narrowing to 2.5x at V=300.
+### Weighted Size Scaling at the Largest Tested Size
+
+| Family | \|V\| | \|E\| | FW | Dijkstra | Winner | Speedup |
+|:--|--:|--:|--:|--:|:--|--:|
+| Sparse `d~6` | 1000 | 3000 | 788.64 ms | **96.34 ms** | Dijkstra | 8.2x |
+| Medium `d~20` | 750 | 7500 | 410.04 ms | **91.77 ms** | Dijkstra | 4.5x |
+| Dense `V²/4` | 500 | 62500 | **126.97 ms** | 169.36 ms | FW | 1.3x |
+| Complete | 300 | 44850 | **26.67 ms** | 67.25 ms | FW | 2.5x |
+| Grid | 625 | 1200 | 111.48 ms | **15.86 ms** | Dijkstra | 7.0x |
+
+The weighted size sweep shows the same empirical sparse-versus-dense split seen elsewhere in the results: in these sampled size-scaling families, Dijkstra has the lower point estimate on sparse and geometric-style cases, while Floyd-Warshall only recovers once graphs become dense enough.
 
 ## Density Scaling
 
-Performance as edge density increases at fixed vertex count.
-
 <p align="center">
-  <img src="docs/scaling_with_density.svg" alt="Time vs edge probability for V=50, 100, 200, 500" width="100%">
+  <img src="docs/scaling_with_density.svg" alt="Time versus edge probability for V=50, 100, 200, and 500" width="100%">
 </p>
 
-### V = 50
+### `V = 50`
 
-| p | \|E\| | BFS | FW | Dijkstra | FW/BFS |
-|--:|--:|--:|--:|--:|--:|
-| 0.05 | 46 | **6.41 us** | 15.4 us | 16.7 us | 2.4x |
-| 0.1 | 111 | **12.2 us** | 67.2 us | 54.4 us | 5.5x |
-| 0.2 | 227 | **21.8 us** | 98.9 us | 71.9 us | 4.5x |
-| 0.3 | 349 | **30.6 us** | 105 us | 82.9 us | 3.4x |
-| 0.5 | 587 | **42.6 us** | 114 us | 105 us | 2.7x |
-| 0.7 | 847 | **54.4 us** | 119 us | 131 us | 2.2x |
-| 0.9 | 1,099 | **66.0 us** | 123 us | 151 us | 1.9x |
+| `p` | \|E\| | BFS | FW | Dijkstra |
+|--:|--:|--:|--:|--:|
+| 0.05 | 46 | **6.7 us** | 16.4 us | 16.8 us |
+| 0.10 | 111 | **14.1 us** | 70.6 us | 57.1 us |
+| 0.20 | 227 | **23.1 us** | 104.5 us | 76.8 us |
+| 0.30 | 349 | **35.9 us** | 112.2 us | 88.3 us |
+| 0.50 | 587 | **58.7 us** | 120.8 us | 106.2 us |
+| 0.70 | 847 | **74.4 us** | 126.1 us | 126.4 us |
+| 0.90 | 1099 | **87.2 us** | 131.2 us | 143.0 us |
 
-### V = 100
+### `V = 100`
 
-| p | \|E\| | BFS | FW | Dijkstra | FW/BFS |
-|--:|--:|--:|--:|--:|--:|
-| 0.02 | 80 | **14.7 us** | 63.3 us | 34.8 us | 4.3x |
-| 0.05 | 227 | **125 us** | 557 us | 339 us | 4.5x |
-| 0.1 | 465 | **152 us** | 797 us | 383 us | 5.3x |
-| 0.2 | 956 | **185 us** | 904 us | 462 us | 4.9x |
-| 0.3 | 1,472 | **218 us** | 921 us | 531 us | 4.2x |
-| 0.5 | 2,496 | **301 us** | 967 us | 649 us | 3.2x |
-| 0.7 | 3,478 | **381 us** | 940 us | 777 us | 2.5x |
-| 0.9 | 4,477 | **468 us** | 944 us | 902 us | 2.0x |
+| `p` | \|E\| | BFS | FW | Dijkstra |
+|--:|--:|--:|--:|--:|
+| 0.02 | 80 | **15.8 us** | 61.4 us | 37.3 us |
+| 0.05 | 227 | **137.6 us** | 562.3 us | 357.8 us |
+| 0.10 | 465 | **159.3 us** | 828.3 us | 406.5 us |
+| 0.20 | 956 | **210.0 us** | 940.1 us | 491.9 us |
+| 0.30 | 1472 | **268.6 us** | 938.5 us | 592.6 us |
+| 0.50 | 2496 | **407.2 us** | 997.6 us | 753.6 us |
+| 0.70 | 3478 | **406.3 us** | 979.8 us | 943.0 us |
+| 0.90 | 4477 | **498.3 us** | 992.8 us | 1.10 ms |
 
-### V = 200
+### `V = 200`
 
-| p | \|E\| | BFS | FW | Dijkstra | FW/BFS |
-|--:|--:|--:|--:|--:|--:|
-| 0.02 | 367 | **549 us** | 3.37 ms | 1.42 ms | 6.1x |
-| 0.05 | 956 | **674 us** | 6.05 ms | 1.75 ms | 9.0x |
-| 0.1 | 2,002 | **846 us** | 6.83 ms | 2.10 ms | 8.1x |
-| 0.2 | 4,009 | **1.17 ms** | 7.06 ms | 2.78 ms | 6.0x |
-| 0.3 | 5,996 | **1.50 ms** | 7.19 ms | 3.41 ms | 4.8x |
-| 0.5 | 9,967 | **2.17 ms** | 7.26 ms | 4.75 ms | 3.4x |
-| 0.7 | 13,966 | **2.84 ms** | 7.35 ms | 6.08 ms | 2.6x |
-| 0.9 | 17,913 | **3.48 ms** | 7.36 ms | 7.51 ms | 2.1x |
+| `p` | \|E\| | BFS | FW | Dijkstra |
+|--:|--:|--:|--:|--:|
+| 0.02 | 367 | **577.0 us** | 3.32 ms | 1.50 ms |
+| 0.05 | 956 | **721.1 us** | 6.24 ms | 1.84 ms |
+| 0.10 | 2002 | **958.9 us** | 6.88 ms | 2.16 ms |
+| 0.20 | 4009 | **1.50 ms** | 7.21 ms | 2.70 ms |
+| 0.30 | 5996 | **1.87 ms** | 7.23 ms | 3.26 ms |
+| 0.50 | 9967 | **2.93 ms** | 6.88 ms | 4.32 ms |
+| 0.70 | 13966 | **3.71 ms** | 7.29 ms | 5.50 ms |
+| 0.90 | 17913 | **3.92 ms** | 7.39 ms | 6.50 ms |
 
-### V = 500
+### `V = 500`
 
-| p | \|E\| | BFS | FW | Dijkstra | FW/BFS |
-|--:|--:|--:|--:|--:|--:|
-| 0.01 | 1,234 | **4.02 ms** | 77.5 ms | 10.9 ms | 19.3x |
-| 0.02 | 2,520 | **4.51 ms** | 94.8 ms | 12.3 ms | 21.0x |
-| 0.05 | 6,246 | **6.16 ms** | 106 ms | 14.9 ms | 17.2x |
-| 0.1 | 12,524 | **8.59 ms** | 110 ms | 19.2 ms | 12.9x |
-| 0.2 | 25,129 | **14.2 ms** | 111 ms | 27.7 ms | 7.8x |
-| 0.3 | 37,569 | **20.1 ms** | 113 ms | 36.1 ms | 5.6x |
-| 0.5 | 62,592 | **31.6 ms** | 114 ms | 54.4 ms | 3.6x |
+| `p` | \|E\| | BFS | FW | Dijkstra |
+|--:|--:|--:|--:|--:|
+| 0.01 | 1234 | **4.27 ms** | 86.59 ms | 11.46 ms |
+| 0.02 | 2520 | **4.94 ms** | 101.74 ms | 12.94 ms |
+| 0.05 | 6246 | **7.25 ms** | 116.26 ms | 15.63 ms |
+| 0.10 | 12524 | **10.25 ms** | 117.80 ms | 20.20 ms |
+| 0.20 | 25129 | **16.23 ms** | 119.03 ms | 29.39 ms |
+| 0.30 | 37569 | **29.83 ms** | 119.58 ms | 38.55 ms |
+| 0.50 | 62592 | **33.72 ms** | 120.20 ms | 57.50 ms |
 
-FW time is constant with respect to density (O(V³) always), while BFS and Dijkstra cost grows with E. At p=0.9 (near-complete), BFS is still 1.9-2.1x faster than FW at all tested sizes.
-
-### Weighted Density Scaling (FW vs Dijkstra)
+Floyd-Warshall still does not overtake BFS anywhere in the unweighted density sweep. Even at `V=500, p=0.5`, BFS remains `3.6x` faster than Floyd-Warshall.
 
 <p align="center">
-  <img src="docs/scaling_with_density_weighted.svg" alt="Weighted density scaling: FW vs Dijkstra" width="100%">
+  <img src="docs/scaling_with_density_weighted.svg" alt="Weighted density scaling for Floyd-Warshall versus Pairwise Dijkstra" width="100%">
 </p>
 
-At V=500 with random weights in \[1, 9\]:
+### Weighted Density Scaling at `V = 500`
 
-| p | FW | Dijkstra | Winner | Speedup |
+| `p` | FW | Dijkstra | Winner | Speedup |
 |--:|--:|--:|:--|--:|
-| 0.01 | 85.6 ms | **18.8 ms** | Dijkstra | 4.5x |
-| 0.02 | 105 ms | **28.0 ms** | Dijkstra | 3.7x |
-| 0.05 | 117 ms | **41.2 ms** | Dijkstra | 2.8x |
-| 0.10 | 121 ms | **55.9 ms** | Dijkstra | 2.2x |
-| 0.20 | 121 ms | **82.9 ms** | Dijkstra | 1.5x |
-| 0.30 | 121 ms | **109 ms** | Dijkstra | 1.1x |
-| 0.50 | **120 ms** | 162 ms | FW | 1.4x |
+| 0.01 | 88.68 ms | **19.70 ms** | Dijkstra | 4.5x |
+| 0.02 | 109.70 ms | **29.33 ms** | Dijkstra | 3.7x |
+| 0.05 | 122.52 ms | **43.18 ms** | Dijkstra | 2.8x |
+| 0.10 | 126.89 ms | **58.93 ms** | Dijkstra | 2.2x |
+| 0.20 | 127.49 ms | **87.78 ms** | Dijkstra | 1.5x |
+| 0.30 | 127.20 ms | **114.84 ms** | Dijkstra | 1.1x |
+| 0.50 | **126.33 ms** | 169.74 ms | FW | 1.3x |
 
-The crossover is between p=0.30 and p=0.50 (roughly p=0.35). Below this density, Dijkstra's O(V(V+E) log V) is faster because E is small enough to offset the per-source overhead. Above it, FW's O(V³) with no heap operations wins.
+Weighted crossover points move left as `V` grows:
+
+- `V=50`: Floyd-Warshall wins every sampled density
+- `V=100`: Dijkstra wins through `p=0.1`, Floyd-Warshall from `p=0.2`
+- `V=200`: Dijkstra wins through `p=0.2`, Floyd-Warshall from `p=0.3`
+- `V=500`: Dijkstra wins through `p=0.3`, Floyd-Warshall at `p=0.5`
 
 ## Topology Comparison
 
-Performance across 16 graph topologies at fixed vertex count.
+Performance across **26** topology families at approximately fixed target vertex count. Some generators snap to the nearest achievable order, so the realized `|V|` values vary slightly by family.
 
-### V ~ 500 (Unweighted)
+### `V ~ 500` (Unweighted)
 
-| Topology | \|V\| | \|E\| | BFS | FW | Dijkstra | FW/BFS |
-|:--|--:|--:|--:|--:|--:|--:|
-| star | 500 | 499 | **1.07 ms** | 92.7 ms | 7.32 ms | 87.1x |
-| friendship | 499 | 747 | **1.18 ms** | 92.4 ms | 7.33 ms | 78.6x |
-| wheel | 500 | 998 | **1.29 ms** | 91.4 ms | 7.60 ms | 70.7x |
-| torus | 506 | 1,012 | **1.52 ms** | 60.1 ms | 6.42 ms | 39.5x |
-| grid | 506 | 967 | **1.48 ms** | 53.8 ms | 6.23 ms | 36.3x |
-| barabasi\_albert | 500 | 1,494 | **3.49 ms** | 112 ms | 10.7 ms | 32.0x |
-| path | 500 | 499 | **1.81 ms** | 42.4 ms | 2.10 ms | 23.5x |
-| cycle | 500 | 500 | **2.25 ms** | 47.9 ms | 2.47 ms | 21.2x |
-| er\_sparse | 500 | 2,520 | **4.55 ms** | 96.4 ms | 12.5 ms | 21.2x |
-| watts\_strogatz | 500 | 1,500 | **3.85 ms** | 81.8 ms | 10.8 ms | 21.2x |
-| er\_medium | 500 | 12,524 | **8.67 ms** | 112 ms | 19.3 ms | 12.9x |
-| er\_dense | 500 | 50,015 | **26.9 ms** | 114 ms | 46.0 ms | 4.2x |
-| crown | 500 | 62,250 | **31.2 ms** | 78.2 ms | 54.5 ms | 2.5x |
-| complete\_bipartite | 500 | 62,500 | **32.0 ms** | 76.8 ms | 54.3 ms | 2.4x |
-| turan | 500 | 100,000 | **49.2 ms** | 104 ms | 81.2 ms | 2.1x |
-| complete | 500 | 124,750 | **60.4 ms** | 92.0 ms | 99.5 ms | 1.5x |
+| Topology | \|V\| | \|E\| | BFS | FW | Dijkstra |
+|:--|--:|--:|--:|--:|--:|
+| barabasi_albert | 500 | 1494 | **4.04 ms** | 113.68 ms | 10.84 ms |
+| barbell | 500 | 10201 | **6.43 ms** | 55.42 ms | 12.91 ms |
+| complete | 500 | 124750 | **60.93 ms** | 91.45 ms | 126.34 ms |
+| complete_bipartite | 500 | 62500 | **31.40 ms** | 83.49 ms | 66.71 ms |
+| complete_bipartite_imbalanced | 500 | 40000 | **20.78 ms** | 112.44 ms | 45.66 ms |
+| crown | 500 | 62250 | **31.31 ms** | 82.96 ms | 66.13 ms |
+| cycle | 500 | 500 | **2.46 ms** | 50.76 ms | 2.54 ms |
+| er_dense | 500 | 50015 | **27.26 ms** | 119.34 ms | 58.24 ms |
+| er_medium | 500 | 12524 | **9.20 ms** | 115.82 ms | 21.47 ms |
+| er_sparse | 500 | 2520 | **4.98 ms** | 97.53 ms | 12.67 ms |
+| friendship | 499 | 747 | **1.26 ms** | 90.93 ms | 7.42 ms |
+| grid | 506 | 967 | **1.95 ms** | 57.22 ms | 5.70 ms |
+| hexagonal_lattice | 510 | 734 | **1.98 ms** | 57.47 ms | 5.35 ms |
+| hypercube | 512 | 2304 | **2.52 ms** | 101.83 ms | 8.90 ms |
+| path | 500 | 499 | **2.14 ms** | 43.29 ms | 2.14 ms |
+| random_geometric | 500 | 1451 | **2.42 ms** | 31.88 ms | 7.49 ms |
+| random_regular_k4 | 500 | 1000 | **3.28 ms** | 70.17 ms | 10.07 ms |
+| random_sparse_bipartite | 500 | 1466 | **4.50 ms** | 57.28 ms | 11.29 ms |
+| star | 500 | 499 | **1.19 ms** | 92.06 ms | 7.12 ms |
+| stochastic_block_model | 500 | 19431 | **12.54 ms** | 105.33 ms | 27.66 ms |
+| torus | 506 | 1012 | **1.71 ms** | 64.14 ms | 6.11 ms |
+| triangular_lattice | 506 | 1429 | **1.80 ms** | 57.77 ms | 6.34 ms |
+| turan | 500 | 100000 | **49.18 ms** | 112.10 ms | 102.34 ms |
+| watts_strogatz | 500 | 1500 | **4.28 ms** | 79.25 ms | 10.89 ms |
+| wheel | 500 | 998 | **1.39 ms** | 92.58 ms | 7.56 ms |
+| windmill_k4 | 499 | 996 | **1.39 ms** | 91.29 ms | 7.65 ms |
 
-The FW/BFS ratio ranges from 1.5x on complete graphs to 87.1x on star graphs (two orders of magnitude). The ratio correlates with edge density: sparse topologies (star, friendship, wheel) show the largest gaps, dense topologies (complete, turan) the smallest.
+By mean point estimate, BFS is fastest on all 26 `V~500` topology families. The closest case is `path`, where BFS is `2.1366 ms` with CI `[2.1319, 2.1413]` and Dijkstra is `2.1412 ms` with CI `[2.1395, 2.1434]`; the marginal confidence intervals overlap, so this case is not cleanly separable from Criterion's reported intervals alone. The topology sweep is comparative rather than perfectly controlled, because several generators only realize discrete size ladders and therefore can only be matched at the same rough problem scale. Among the sparse structured families, `friendship`, `wheel`, `windmill_k4`, and `star` have the lowest absolute times.
 
-### V ~ 500 (Weighted: FW vs Dijkstra)
+### `V ~ 500` (Weighted)
 
-| Topology | \|V\| | \|E\| | FW | Dijkstra | Winner | Speedup |
-|:--|--:|--:|--:|--:|:--|--:|
-| path | 500 | 499 | 50.5 ms | **3.29 ms** | Dijkstra | 15.3x |
-| cycle | 500 | 500 | 51.0 ms | **3.77 ms** | Dijkstra | 13.5x |
-| star | 500 | 499 | 119 ms | **9.67 ms** | Dijkstra | 12.3x |
-| friendship | 499 | 747 | 119 ms | **13.0 ms** | Dijkstra | 9.2x |
-| wheel | 500 | 998 | 122 ms | **15.9 ms** | Dijkstra | 7.7x |
-| grid | 506 | 967 | 58.9 ms | **11.2 ms** | Dijkstra | 5.3x |
-| barabasi\_albert | 500 | 1,494 | 120 ms | **22.8 ms** | Dijkstra | 5.3x |
-| torus | 506 | 1,012 | 64.3 ms | **12.9 ms** | Dijkstra | 5.0x |
-| er\_sparse | 500 | 2,520 | 109 ms | **28.3 ms** | Dijkstra | 3.9x |
-| watts\_strogatz | 500 | 1,500 | 84.0 ms | **21.7 ms** | Dijkstra | 3.9x |
-| er\_medium | 500 | 12,524 | 124 ms | **58.0 ms** | Dijkstra | 2.1x |
-| er\_dense | 500 | 50,015 | **127 ms** | 140 ms | FW | 1.1x |
-| crown | 500 | 62,250 | **83.2 ms** | 151 ms | FW | 1.8x |
-| complete\_bipartite | 500 | 62,500 | **82.4 ms** | 154 ms | FW | 1.9x |
-| turan | 500 | 100,000 | **112 ms** | 247 ms | FW | 2.2x |
-| complete | 500 | 124,750 | **122 ms** | 294 ms | FW | 2.4x |
+| Topology | \|V\| | \|E\| | FW | Dijkstra |
+|:--|--:|--:|--:|--:|
+| barabasi_albert | 500 | 1494 | 120.74 ms | **22.86 ms** |
+| barbell | 500 | 10201 | 57.26 ms | **30.29 ms** |
+| complete | 500 | 124750 | **121.09 ms** | 299.04 ms |
+| complete_bipartite | 500 | 62500 | **84.99 ms** | 158.76 ms |
+| complete_bipartite_imbalanced | 500 | 40000 | 114.60 ms | **107.38 ms** |
+| crown | 500 | 62250 | **84.86 ms** | 156.61 ms |
+| cycle | 500 | 500 | 53.13 ms | **3.62 ms** |
+| er_dense | 500 | 50015 | **126.08 ms** | 142.08 ms |
+| er_medium | 500 | 12524 | 125.98 ms | **58.48 ms** |
+| er_sparse | 500 | 2520 | 108.39 ms | **29.08 ms** |
+| friendship | 499 | 747 | 119.99 ms | **12.63 ms** |
+| grid | 506 | 967 | 59.74 ms | **11.15 ms** |
+| hexagonal_lattice | 510 | 734 | 58.82 ms | **10.73 ms** |
+| hypercube | 512 | 2304 | 107.59 ms | **21.00 ms** |
+| path | 500 | 499 | 52.77 ms | **3.05 ms** |
+| random_geometric | 500 | 1451 | 29.90 ms | **15.02 ms** |
+| random_regular_k4 | 500 | 1000 | 76.33 ms | **16.47 ms** |
+| random_sparse_bipartite | 500 | 1466 | 63.09 ms | **21.47 ms** |
+| star | 500 | 499 | 123.98 ms | **9.62 ms** |
+| stochastic_block_model | 500 | 19431 | 114.49 ms | **73.81 ms** |
+| torus | 506 | 1012 | 65.58 ms | **13.05 ms** |
+| triangular_lattice | 506 | 1429 | 60.78 ms | **17.88 ms** |
+| turan | 500 | 100000 | **114.66 ms** | 246.61 ms |
+| watts_strogatz | 500 | 1500 | 86.02 ms | **21.99 ms** |
+| wheel | 500 | 998 | 123.95 ms | **16.47 ms** |
+| windmill_k4 | 499 | 996 | 120.96 ms | **15.75 ms** |
 
-Dijkstra wins on 11 of 16 topologies. FW wins on the 5 densest: complete, turan, complete\_bipartite, crown, and er\_dense (p=0.4). The breakeven is near 50,000 edges for V=500 (edge density ~40%).
+By mean point estimate, Dijkstra wins **21 of 26** topology families. Floyd-Warshall wins only the five densest configurations: `complete`, `complete_bipartite`, `crown`, `er_dense`, and `turan`. The newly added `windmill_k4` and lattice families are all Dijkstra point-estimate wins at `V~500`.
 
 <p align="center">
-  <img src="docs/topology_topology_V500.svg" alt="Bar chart comparing all three algorithms across topologies at V~500" width="100%">
+  <img src="docs/topology_topology_V500.svg" alt="Bar chart comparing all three APSP algorithms across 26 topology families at V~500" width="100%">
 </p>
 
 ## Real-World Graph Models
 
 <p align="center">
-  <img src="docs/realworld_structures.svg" alt="Scaling plots for 7 real-world graph models" width="100%">
+  <img src="docs/realworld_structures.svg" alt="Unweighted scaling plots for seven real-world graph models" width="100%">
 </p>
 
-### Barabási-Albert (m = 2)
+### Largest Tested Size Per Real-World Family (Unweighted)
 
-Scale-free network with preferential attachment, average degree ~4.
+| Family | \|V\| | \|E\| | BFS | FW | Dijkstra | Winner | Speedup |
+|:--|--:|--:|--:|--:|--:|:--|--:|
+| BA `m=2` | 750 | 1497 | **6.98 ms** | 406.89 ms | 24.41 ms | BFS | 58.3x |
+| BA `m=5` | 750 | 3735 | **10.11 ms** | 378.31 ms | 28.37 ms | BFS | 37.4x |
+| Watts-Strogatz `k=6` | 750 | 2250 | **9.49 ms** | 281.31 ms | 25.61 ms | BFS | 29.6x |
+| Watts-Strogatz `k=10` | 750 | 3750 | **11.00 ms** | 334.13 ms | 28.93 ms | BFS | 30.4x |
+| Stochastic block model | 500 | 19431 | **12.29 ms** | 107.72 ms | 24.91 ms | BFS | 8.8x |
+| Random geometric | 750 | 2284 | **6.12 ms** | 96.43 ms | 19.69 ms | BFS | 15.8x |
+| Random regular `k=4` | 750 | 1500 | **6.98 ms** | 244.92 ms | 23.43 ms | BFS | 35.1x |
 
-| \|V\| | \|E\| | BFS | FW | Dijkstra | FW/BFS |
-|--:|--:|--:|--:|--:|--:|
-| 50 | 97 | **13.6 us** | 97.3 us | 48.3 us | 7.2x |
-| 100 | 197 | **59.2 us** | 575 us | 187 us | 9.7x |
-| 200 | 397 | **285 us** | 4.94 ms | 951 us | 17.3x |
-| 500 | 997 | **2.74 ms** | 111 ms | 9.15 ms | 40.5x |
-| 750 | 1,497 | **6.56 ms** | 371 ms | 21.2 ms | 56.6x |
+The tested Barabási-Albert and Watts-Strogatz families show the same empirical pattern as the synthetic sparse suites: BFS has the lower point estimate throughout, with largest-size speedups ranging from `29.6x` to `58.3x`. The block-model case is denser, and in this dataset its largest-size advantage is smaller but still substantial at `8.8x`.
 
-### Watts-Strogatz (k = 6, beta = 0.3)
+<p align="center">
+  <img src="docs/realworld_structures_weighted.svg" alt="Weighted scaling plots for seven real-world graph models" width="100%">
+</p>
 
-Small-world network with ring lattice and random rewiring.
+### Largest Tested Size Per Real-World Family (Weighted)
 
-| \|V\| | \|E\| | BFS | FW | Dijkstra | FW/BFS |
-|--:|--:|--:|--:|--:|--:|
-| 50 | 150 | **16.5 us** | 102 us | 56.7 us | 6.2x |
-| 100 | 300 | **61.9 us** | 531 us | 183 us | 8.6x |
-| 200 | 600 | **290 us** | 4.37 ms | 920 us | 15.1x |
-| 500 | 1,500 | **3.26 ms** | 79.5 ms | 9.92 ms | 24.4x |
-| 750 | 2,250 | **7.51 ms** | 270 ms | 23.3 ms | 36.0x |
+| Family | \|V\| | \|E\| | FW | Dijkstra | Winner | Speedup |
+|:--|--:|--:|--:|--:|:--|--:|
+| BA `m=2` | 750 | 1497 | 395.61 ms | **43.30 ms** | Dijkstra | 9.1x |
+| BA `m=5` | 750 | 3735 | 414.08 ms | **68.81 ms** | Dijkstra | 6.0x |
+| Watts-Strogatz `k=6` | 750 | 2250 | 298.60 ms | **52.26 ms** | Dijkstra | 5.7x |
+| Watts-Strogatz `k=10` | 750 | 3750 | 378.84 ms | **70.49 ms** | Dijkstra | 5.4x |
+| Stochastic block model | 500 | 19431 | 118.35 ms | **74.28 ms** | Dijkstra | 1.6x |
+| Random geometric | 750 | 2284 | 114.56 ms | **39.91 ms** | Dijkstra | 2.9x |
+| Random regular `k=4` | 750 | 1500 | 268.91 ms | **41.17 ms** | Dijkstra | 6.5x |
 
-### Stochastic Block Model
-
-Community structure with p\_intra=0.3, p\_inter=0.01.
-
-| \|V\| | \|E\| | BFS | FW | Dijkstra | FW/BFS |
-|--:|--:|--:|--:|--:|--:|
-| 50 | 198 | **17.1 us** | 78.2 us | 51.7 us | 4.6x |
-| 100 | 817 | **85.2 us** | 555 us | 228 us | 6.5x |
-| 200 | 3,119 | **518 us** | 4.47 ms | 1.33 ms | 8.6x |
-| 500 | 19,221 | **11.0 ms** | 109 ms | 21.6 ms | 9.9x |
+Across the largest tested real-world instances, the weighted families remain on the Dijkstra-favored side of the frontier: Dijkstra wins every largest-size real-world benchmark.
 
 ## Extreme and Pathological Cases
 
 <p align="center">
-  <img src="docs/extreme_cases.svg" alt="Scaling plots for star, path, cycle, and crown pathological structures" width="100%">
+  <img src="docs/extreme_cases.svg" alt="Unweighted plots for barbell, hypercube, star, path, cycle, crown, complete bipartite, and Petersen graph benchmarks" width="100%">
 </p>
 
-### Star Graphs
+### Largest Tested Configuration Per Extreme Family (Unweighted)
 
-Largest BFS advantage observed. Every BFS from a leaf reaches all other vertices in at most 2 hops, while FW still performs V³ operations.
+| Family | \|V\| | \|E\| | BFS | FW | Dijkstra | Winner | Speedup |
+|:--|--:|--:|--:|--:|--:|:--|--:|
+| Barbell | 200 | 9901 | **2.06 ms** | 5.16 ms | 3.83 ms | BFS | 2.5x |
+| Complete bipartite | 250 | 10000 | **2.69 ms** | 13.72 ms | 6.46 ms | BFS | 5.1x |
+| Crown | 200 | 9900 | **2.27 ms** | 5.50 ms | 4.18 ms | BFS | 2.4x |
+| Cycle | 1000 | 1000 | **8.69 ms** | 324.60 ms | 9.75 ms | BFS | 37.3x |
+| Hypercube | 256 | 1024 | **522.0 us** | 12.56 ms | 1.90 ms | BFS | 24.1x |
+| Path | 1000 | 999 | **6.80 ms** | 328.12 ms | 8.24 ms | BFS | 48.2x |
+| Petersen | 10 | 15 | **561 ns** | 1.1 us | 1.4 us | BFS | 2.5x |
+| Star | 1000 | 999 | **4.43 ms** | 863.39 ms | 31.36 ms | BFS | 195.0x |
 
-| \|V\| | \|E\| | BFS | FW | Dijkstra | FW/BFS |
-|--:|--:|--:|--:|--:|--:|
-| 50 | 49 | **11.0 us** | 139 us | 68.1 us | 12.7x |
-| 100 | 99 | **40.2 us** | 736 us | 227 us | 18.3x |
-| 200 | 199 | **172 us** | 7.02 ms | 993 us | 40.8x |
-| 500 | 499 | **1.07 ms** | 112 ms | 8.01 ms | 104.7x |
-| 750 | 749 | **2.39 ms** | 360 ms | 18.3 ms | 150.4x |
-| 1,000 | 999 | **4.57 ms** | 840 ms | 30.3 ms | 183.7x |
+The fixed-order Petersen case is primarily a tiny sanity-check benchmark: absolute times are all sub-microsecond to low-microsecond, and the benchmark is too small to support stronger scaling conclusions.
 
-### Path Graphs
+<p align="center">
+  <img src="docs/extreme_cases_weighted.svg" alt="Weighted Petersen graph comparison for Floyd-Warshall versus Pairwise Dijkstra" width="40%">
+</p>
 
-Maximum diameter (V-1), the worst case for BFS queue depth.
+### Weighted Petersen
 
-| \|V\| | \|E\| | BFS | FW | Dijkstra | FW/BFS |
-|--:|--:|--:|--:|--:|--:|
-| 50 | 49 | **11.4 us** | 47.2 us | 22.3 us | 4.1x |
-| 100 | 99 | **52.3 us** | 393 us | 114 us | 7.5x |
-| 200 | 199 | **259 us** | 3.40 ms | 589 us | 13.1x |
-| 500 | 499 | **1.82 ms** | 43.8 ms | 3.71 ms | 24.1x |
-| 750 | 749 | **4.22 ms** | 150 ms | 8.90 ms | 35.5x |
-| 1,000 | 999 | **7.18 ms** | 325 ms | 16.3 ms | 45.2x |
+| Graph | \|V\| | \|E\| | FW | Dijkstra | Winner | Speedup |
+|:--|--:|--:|--:|--:|:--|--:|
+| Petersen | 10 | 15 | **1.1 us** | 2.2 us | FW | 1.9x |
 
-### Hypercube Graphs
-
-Q_d has 2^d vertices and d·2^(d-1) edges, d-regular with logarithmic diameter.
-
-| d | \|V\| | \|E\| | BFS | FW | Dijkstra | FW/BFS |
-|--:|--:|--:|--:|--:|--:|--:|
-| 4 | 16 | 32 | **1.34 us** | 3.55 us | 3.29 us | 2.6x |
-| 6 | 64 | 192 | **20.9 us** | 172 us | 77.7 us | 8.2x |
-| 8 | 256 | 1,024 | **463 us** | 13.5 ms | 2.39 ms | 29.2x |
+At this scale, Floyd-Warshall has the lower point estimate.
 
 ## Crossover Analysis
 
-### Unweighted: BFS Always Wins
+### Unweighted: BFS Leads by Point Estimate Almost Everywhere
 
-Across all 932 measurements, BFS is faster than Floyd-Warshall in every unweighted configuration tested. The minimum BFS advantage is 1.2x on complete graphs at V=300. BFS's lower constant factor (no distance addition or comparison, just a queue push) is enough to beat FW even when both algorithms perform O(V³) work on complete graphs.
+Across all **unweighted** measurements, Pairwise BFS beats Floyd-Warshall in every tested configuration by point estimate, and it also beats Pairwise Dijkstra everywhere except `cycle_V200`, where Dijkstra is ahead by less than 1%. One additional case, `path_V500`, is too close to separate confidently from Criterion's reported intervals alone because the BFS and Dijkstra marginal confidence intervals overlap. The tightest dense cases are still complete graphs, but BFS stays ahead there as well in the current data.
 
-### Weighted: Density-Dependent Crossover
+### Weighted: Density Shapes the Point-Estimate Frontier
 
-For weighted graphs, Floyd-Warshall beats Dijkstra only on dense graphs. At V=500:
+Two point-estimate frontiers show up clearly:
 
-| Topology Class | Avg Degree | FW/Dijkstra | Winner |
-|:--|--:|--:|:--|
-| Path / Cycle | 2 | 13-15x | Dijkstra |
-| Star | 2 | 12.3x | Dijkstra |
-| Grid / Torus | ~4 | 5.0-5.3x | Dijkstra |
-| BA m=3 / WS k=6 | 6 | 3.9-5.3x | Dijkstra |
-| ER p=0.1 | ~50 | 2.1x | Dijkstra |
-| ER p=0.4 (dense) | ~200 | 0.91x | FW |
-| Crown / K\_{m,n} | ~250 | 0.54-0.55x | FW |
-| Turan T(500,5) | 400 | 0.45x | FW |
-| Complete K\_500 | 499 | 0.41x | FW |
+- In the **density sweep**, the point-estimate crossover moves left as graphs get larger:
+  - `V=50`: Floyd-Warshall wins every sampled `p`
+  - `V=100`: Dijkstra wins through `p=0.1`, Floyd-Warshall from `p=0.2`
+  - `V=200`: Dijkstra wins through `p=0.2`, Floyd-Warshall from `p=0.3`
+  - `V=500`: Dijkstra wins through `p=0.3`, Floyd-Warshall wins at `p=0.5`
+- In the **topology sweep at V~500**, Dijkstra is the point-estimate winner on `21/26` families and posts its largest gains on path (`17.3x`), cycle (`14.7x`), star (`12.9x`), friendship (`9.5x`), and `windmill_k4` (`7.7x`). Floyd-Warshall wins only in the five densest topology families we tested.
 
-The crossover depends on both edge count and the log V factor in Dijkstra's heap operations. As E grows, Dijkstra's per-source O((V+E)·log V) exceeds FW's per-vertex O(V²), making FW preferable above ~50,000 edges (40% density) for V=500.
+At the sampled density boundaries, the 95% marginal confidence intervals remain separated in the checked boundary cases: at `V=100`, Dijkstra wins at `p=0.1` (`0.9748 ms`, CI `[0.9740, 0.9763]`) and Floyd-Warshall wins at `p=0.2` (`1.2101 ms`, CI `[1.2041, 1.2186]`); at `V=200`, Dijkstra wins at `p=0.2` (`7.9643 ms`, CI `[7.9573, 7.9727]`) and Floyd-Warshall wins at `p=0.3` (`8.8599 ms`, CI `[8.8428, 8.8795]`); at `V=500`, Dijkstra wins at `p=0.3` (`114.8418 ms`, CI `[114.6874, 115.0237]`) and Floyd-Warshall wins at `p=0.5` (`126.3267 ms`, CI `[126.1672, 126.4935]`).
 
 ## Methodology
 
-- **Framework:** [Criterion.rs](https://github.com/bheisler/criterion.rs) 0.8 with HTML reports
-- **Timing:** Mean of adaptive sample sizes (10-100 iterations, 10-120s measurement time depending on graph size)
+- **Framework:** [Criterion.rs](https://github.com/bheisler/criterion.rs) 0.8.2 with HTML reports
+- **Timing:** Criterion means with configured sample counts and measurement times determined by vertex-count bucket
+- **Uncertainty policy:** Tables and winner summaries use Criterion mean point estimates. For close comparisons, we consult Criterion's reported 95% marginal confidence intervals; overlapping marginal intervals are described as near ties rather than categorical wins. The README does not claim formal pairwise significance tests between algorithms.
 - **Graph representation:** `SymmetricCSR2D<CSR2D<usize, usize, usize>>` from `geometric-traits`
-- **Weighted view:** `GenericImplicitValuedMatrix2D` with deterministic weight function producing values in \[1, 9\]
-- **Random seed:** All random graphs seeded with `42` for reproducibility
-- **Compilation:** `--release` profile (optimized), single-threaded
+- **Weighted view:** `GenericImplicitValuedMatrix2D` with deterministic weights generated by `random_weight(42)` in `src/lib.rs`, which is the canonical experiment definition for the weighted setup. The README uses the shorthand `1.0 + (h(seed,row,col) % 9)` for its fixed hash-based mapping.
+- **Random seed:** All randomized graph models use seed `42`
+- **Compilation:** `--release`
 
 ### Benchmark Suites
 
 | Suite | Groups | Measurements | Focus |
 |:--|--:|--:|:--|
 | `scaling_with_size` | 10 | 175 | Fixed density, varying vertex count |
-| `scaling_with_density` | 8 | 150 | Fixed vertices, varying edge probability |
-| `topology_comparison` | 8 | 320 | All graph types at fixed size (unweighted + weighted) |
-| `realworld_structures` | 14 | 170 | Network science graph models |
-| `extreme_cases` | 7 | 117 | Pathological and structured graphs |
-| **Total** | **47** | **932** | |
+| `scaling_with_density` | 8 | 150 | Fixed vertex count, varying edge probability |
+| `topology_comparison` | 8 | 520 | 26 graph families at target size (unweighted + weighted) |
+| `realworld_structures` | 14 | 170 | Network-science model families (unweighted + weighted) |
+| `extreme_cases` | 9 | 122 | Pathological and canonical structures, including Petersen |
+| **Total** | **49** | **1137** | |
 
-### Adaptive Sampling
+### Configured Sampling Schedule
 
 | \|V\| | Sample Size | Measurement Time |
 |--:|--:|--:|
-| >= 500 | 10 | 120 s |
-| >= 200 | 10 | 60 s |
-| >= 50 | 30 | 20 s |
-| < 50 | 100 | 10 s |
+| `>= 500` | 10 | 120 s |
+| `>= 200` | 10 | 60 s |
+| `>= 50` | 30 | 20 s |
+| `< 50` | 100 | 10 s |
+
+### Reported Run Environment
+
+- **CPU:** AMD Ryzen Threadripper PRO 5975WX 32-Cores (64 logical CPUs)
+- **Memory:** `1.0 TiB` RAM
+- **OS:** Linux `6.17.0-19-generic` on `x86_64`
+- **Rust:** `rustc 1.96.0-nightly (f66622c7e 2026-03-23)`
+- **Cargo:** `cargo 1.96.0-nightly (e84cb639e 2026-03-21)`
+- **Dependency pin:** `geometric-traits` `c8ddcb42cf00d6960ef1b813d03823fd9c00da28`
+- **Host policy:** CPU governor observed as `powersave`; no explicit core pinning, NUMA tuning, or governor override is configured by the benchmark harness
+- **Not captured:** boost/frequency telemetry, cache hierarchy dumps, BIOS or microcode revision, and any cgroup/container constraints
+
+### Scope and Limitations
+
+These results are implementation- and environment-specific. They characterize the `geometric-traits` APSP implementations on the graph representation, deterministic weight generator, toolchain, and host described above, and they should not be read as universal rankings of all possible Floyd-Warshall, BFS, or Dijkstra implementations. For randomized graph families, the reported family-level rankings come from the single fixed seed `42`, not from seed-robust averages across many draws. The benchmark domain is also limited to the tested undirected simple-graph generators and non-negative weighted setup; the results do not establish behavior for directed graphs, multigraphs, negative weights, or different weight models.
 
 ## Reproducing
 
 ```bash
-# Run all benchmarks (~12-15 hours)
-cargo bench
+# Benchmark toolchain used for the reported numbers
+rustup toolchain install nightly-2026-03-23
+
+# Run all benchmark suites
+cargo +nightly-2026-03-23 bench --locked
 
 # Run a single benchmark suite
-cargo bench --bench topology_comparison
+cargo +nightly-2026-03-23 bench --locked --bench topology_comparison
 
-# Generate visualization plots
-uv run --isolated --with matplotlib --with numpy python scripts/generate_plots.py
+# Regenerate every report figure
+uv run --isolated --with matplotlib==3.10.8 --with numpy==2.4.3 python scripts/generate_plots.py
 ```
 
-CI performs two lighter-weight checks: `cargo bench --benches --no-run` to verify optimized benchmark targets compile, and `cargo test --benches` to smoke-test the Criterion suites without running the full statistical benchmark job.
+CI performs two lighter-weight checks: `cargo bench --locked --benches --no-run` to verify optimized benchmark targets compile, and `cargo test --locked --benches` to smoke-test the Criterion suites without running the full statistical benchmark job. These CI checks run on stable toolchains for compatibility; the reported benchmark numbers above were collected with `nightly-2026-03-23`.
 
 Results are stored in `target/criterion/` with HTML reports viewable at `target/criterion/report/index.html`.
 

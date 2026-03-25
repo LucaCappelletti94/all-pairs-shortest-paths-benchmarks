@@ -113,7 +113,7 @@ def save_fig(fig, name):
 
 
 # ---------------------------------------------------------------------------
-# 1. Scaling with size — log-log line plots
+# 1. Scaling with size - log-log line plots
 # ---------------------------------------------------------------------------
 def plot_scaling_with_size(records):
     """One subplot per size group showing time vs V for each algorithm."""
@@ -249,7 +249,7 @@ def plot_scaling_with_density_weighted(records):
 
 
 # ---------------------------------------------------------------------------
-# 3. Topology comparison — grouped bar charts
+# 3. Topology comparison - grouped bar charts
 # ---------------------------------------------------------------------------
 def plot_topology_comparison(records):
     """Grouped bar chart per vertex count."""
@@ -431,13 +431,18 @@ def plot_radar_weighted(records):
 def plot_extreme_cases(records):
     """Line plots for pathological graph structures."""
     groups = [
+        ("extreme_barbell", "Barbell"),
+        ("extreme_hypercube", "Hypercube"),
         ("extreme_star", "Star"),
         ("extreme_path", "Path"),
         ("extreme_cycle", "Cycle"),
         ("extreme_crown", "Crown"),
+        ("extreme_complete_bipartite", "Complete Bipartite"),
+        ("extreme_petersen", "Petersen"),
     ]
 
-    fig, axes = plt.subplots(1, 4, figsize=(20, 5), sharey=False)
+    fig, axes = plt.subplots(2, 4, figsize=(22, 10), sharey=False)
+    axes = axes.flatten()
     fig.suptitle("Extreme / Pathological Structures", fontsize=16, fontweight="bold", y=1.02)
 
     for ax, (group, title) in zip(axes, groups):
@@ -464,7 +469,36 @@ def plot_extreme_cases(records):
 
 
 # ---------------------------------------------------------------------------
-# 6. Realworld models
+# 6. Extreme cases (weighted)
+# ---------------------------------------------------------------------------
+def plot_extreme_cases_weighted(records):
+    """Weighted bar chart for fixed-size extreme cases."""
+    group = "extreme_petersen_weighted"
+    algos = ["FloydWarshall", "PairwiseDijkstra"]
+    subset = filter_records(records, group_exact=group)
+    if not subset:
+        return
+
+    algo_map = {r["algorithm"]: r["mean_ms"] for r in subset}
+    labels = [ALGO_LABELS[algo] for algo in algos if algo in algo_map]
+    values = [algo_map[algo] for algo in algos if algo in algo_map]
+    colors = [ALGO_COLORS[algo] for algo in algos if algo in algo_map]
+
+    fig, ax = plt.subplots(figsize=(7, 5))
+    ax.bar(labels, values, color=colors, alpha=0.85)
+    ax.set_yscale("log")
+    ax.set_ylabel("Time (ms)")
+    ax.set_title("Weighted Petersen Graph", fontsize=14, fontweight="bold")
+
+    for idx, value in enumerate(values):
+        ax.text(idx, value, f"{value:.3f} ms", ha="center", va="bottom", fontsize=9)
+
+    fig.tight_layout()
+    save_fig(fig, "extreme_cases_weighted")
+
+
+# ---------------------------------------------------------------------------
+# 7. Realworld models
 # ---------------------------------------------------------------------------
 def plot_realworld(records):
     """Scaling for real-world graph models."""
@@ -508,7 +542,63 @@ def plot_realworld(records):
 
 
 # ---------------------------------------------------------------------------
-# 7. Speedup heatmap: BFS / FW ratio
+# 8. Realworld models (weighted)
+# ---------------------------------------------------------------------------
+def plot_realworld_weighted(records):
+    """Scaling for real-world graph models, weighted variant."""
+    groups = [
+        ("realworld_barabasi_albert_m2_weighted", "BA (m=2)"),
+        ("realworld_barabasi_albert_m5_weighted", "BA (m=5)"),
+        ("realworld_watts_strogatz_k6_weighted", "WS (k=6)"),
+        ("realworld_watts_strogatz_k10_weighted", "WS (k=10)"),
+        ("realworld_stochastic_block_model_weighted", "SBM"),
+        ("realworld_random_geometric_weighted", "RGG"),
+        ("realworld_random_regular_k4_weighted", "RR (k=4)"),
+    ]
+    algos = ["FloydWarshall", "PairwiseDijkstra"]
+
+    fig, axes = plt.subplots(2, 4, figsize=(22, 10), sharey=False)
+    fig.suptitle(
+        "Real-World Graph Models (Weighted: FW vs Dijkstra)",
+        fontsize=16,
+        fontweight="bold",
+        y=1.01,
+    )
+
+    for idx, (group, title) in enumerate(groups):
+        ax = axes[idx // 4][idx % 4]
+        subset = filter_records(records, group_exact=group)
+        for algo in algos:
+            pts = sorted(
+                [(r["vertices"], r["mean_ms"]) for r in subset if r["algorithm"] == algo],
+                key=lambda x: x[0],
+            )
+            if pts:
+                xs, ys = zip(*pts)
+                ax.plot(
+                    xs,
+                    ys,
+                    marker=ALGO_MARKERS[algo],
+                    color=ALGO_COLORS[algo],
+                    label=ALGO_LABELS[algo],
+                    linewidth=1.5,
+                    markersize=5,
+                )
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.set_title(title)
+        ax.set_xlabel("Vertices")
+        ax.set_ylabel("Time (ms)")
+        ax.xaxis.set_major_formatter(ticker.ScalarFormatter())
+
+    axes[1][3].set_visible(False)
+    axes[0][0].legend(fontsize=8, loc="upper left")
+    fig.tight_layout()
+    save_fig(fig, "realworld_structures_weighted")
+
+
+# ---------------------------------------------------------------------------
+# 9. Speedup heatmap: BFS / FW ratio
 # ---------------------------------------------------------------------------
 def plot_speedup_heatmap(records):
     """Heatmap showing BFS speedup over FW across topologies and sizes."""
@@ -565,7 +655,7 @@ def plot_speedup_heatmap(records):
 
 
 # ---------------------------------------------------------------------------
-# 8. Summary table
+# 10. Summary table
 # ---------------------------------------------------------------------------
 def print_summary(records):
     """Print a text summary of key findings."""
@@ -641,7 +731,9 @@ def main():
     plot_radar(records)
     plot_radar_weighted(records)
     plot_extreme_cases(records)
+    plot_extreme_cases_weighted(records)
     plot_realworld(records)
+    plot_realworld_weighted(records)
     plot_speedup_heatmap(records)
 
     print_summary(records)
