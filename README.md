@@ -5,7 +5,7 @@
 
 ## Abstract
 
-We benchmark three all-pairs shortest-path algorithms, Floyd-Warshall \[1,2\], Pairwise BFS \[3\], and Pairwise Dijkstra \[4\], from the [`geometric-traits`](https://github.com/earth-metabolome-initiative/geometric-traits) crate across **1,137 measurements in 49 benchmark groups**. Using Criterion mean point estimates, Pairwise BFS is fastest in all but one unweighted configuration, spanning dense complete graphs and sparse windmill, lattice, and random-regular families; the sole point-estimate exception is `cycle_V200`, where Pairwise Dijkstra is ahead by less than 1%. One additional case, `path_V500`, has overlapping marginal confidence intervals for BFS and Dijkstra, so it is not cleanly separable from Criterion's reported intervals alone. The largest measured speedup is **195.0x** on a 1,000-node star graph. On weighted graphs, point-estimate winners are both density- and size-dependent: at larger tested sizes Pairwise Dijkstra wins the sparse and medium-density cases, while Floyd-Warshall still wins the densest regimes; at `V=50`, however, Floyd-Warshall wins every sampled weighted density. These conclusions are specific to the `geometric-traits` implementations, graph representation, deterministic weighting scheme, sampled generator seeds, and host environment described below. At `V~500`, Dijkstra is the point-estimate winner on **21 of 26** topology families, while Floyd-Warshall wins the five densest cases: complete, complete bipartite, crown, dense Erdős-Rényi, and Turan.
+We benchmark three all-pairs shortest-path algorithms, Floyd-Warshall \[1,2\], Pairwise BFS \[3\], and Pairwise Dijkstra \[4\], from the [`geometric-traits`](https://github.com/earth-metabolome-initiative/geometric-traits) crate across **1,137 measurements in 49 benchmark groups**. Using Criterion mean point estimates, Pairwise BFS is fastest in all but one unweighted configuration, spanning dense complete graphs and sparse windmill, lattice, and random-regular families; the sole point-estimate exception is `cycle_V200`, where Pairwise Dijkstra is ahead by less than 1%. One additional case, `path_V500`, has overlapping marginal confidence intervals for BFS and Dijkstra, so it is not cleanly separable from Criterion's reported intervals alone. The largest measured speedup is **195.0x** on a 1,000-node star graph. On weighted graphs, point-estimate winners are both density- and size-dependent: at larger tested sizes Pairwise Dijkstra wins the sparse and medium-density cases, while Floyd-Warshall still wins the densest regimes; at `V=50`, however, Floyd-Warshall wins every sampled weighted density. These conclusions are specific to the `geometric-traits` implementations, graph representation, deterministic weighting scheme, sampled generator seeds, and host environment described below. At `V~500`, Dijkstra is the point-estimate winner on **21 of 26** topology families, while Floyd-Warshall wins the five densest cases: complete, complete bipartite, crown, dense Erdős-Rényi, and Turán.
 
 ## Visual Summary
 
@@ -50,7 +50,7 @@ The weighted radar shows a clear sparse-versus-dense split. At `V~500`, Dijkstra
 - **Triangular lattice**: grid with alternating diagonals
 - **Hypercube** `Q_d`: `2^d` vertices, `d·2^(d-1)` edges
 - **Petersen graph**: fixed 10-vertex, 15-edge canonical cubic graph
-- **Turan graph** `T(n,r)`: densest graph with no `(r+1)`-clique
+- **Turán graph** `T(n,r)`: densest graph with no `(r+1)`-clique
 - **Friendship graph** `F_n`: `2n+1` vertices, `n` triangles sharing one hub
 - **Windmill K4**: `n` copies of `K4` glued at one shared hub vertex
 - **Barbell graph** `B(k,p)`: two `K_k` cliques connected by a bridge with `p` intermediate vertices in the benchmark convention (`|V| = 2k + p`)
@@ -97,11 +97,11 @@ The 12 largest measured slowdowns of the slower APSP algorithm relative to the f
 | `topology_V500` | `friendship_V499_E747` | 499 | 747 | **1.26 ms** | 90.93 ms | BFS | **72.0x** |
 | `topology_V500` | `wheel_V500_E998` | 500 | 998 | **1.39 ms** | 92.58 ms | BFS | **66.7x** |
 | `topology_V500` | `windmill_k4_V499_E996` | 499 | 996 | **1.39 ms** | 91.29 ms | BFS | **65.5x** |
-| `realworld_barabasi_albert_m2` | `V750_E1497` | 750 | 1497 | **6.98 ms** | 406.89 ms | BFS | **58.3x** |
+| `Barabási-Albert (m=2)` | `V750_E1497` | 750 | 1497 | **6.98 ms** | 406.89 ms | BFS | **58.3x** |
 | `extreme_path` | `V1000_E999` | 1000 | 999 | **6.80 ms** | 328.12 ms | BFS | **48.2x** |
 | `size_grid` | `V625_E1200` | 625 | 1200 | **2.33 ms** | 107.61 ms | BFS | **46.2x** |
 | `extreme_star` | `V200_E199` | 200 | 199 | **176.1 us** | 7.26 ms | BFS | **41.2x** |
-| `realworld_barabasi_albert_m2` | `V500_E997` | 500 | 997 | **2.86 ms** | 117.50 ms | BFS | **41.1x** |
+| `Barabási-Albert (m=2)` | `V500_E997` | 500 | 997 | **2.86 ms** | 117.50 ms | BFS | **41.1x** |
 
 By point estimate, BFS wins essentially the entire unweighted suite. The new structured additions broaden the same story: `windmill_k4`, `hypercube`, `hexagonal_lattice`, and `triangular_lattice` are all BFS wins by point estimate, with `cycle_V200` the lone Dijkstra exception and `path_V500` the closest near-tie.
 
@@ -280,16 +280,16 @@ Performance across **26** topology families at approximately fixed target vertex
 
 | Topology | \|V\| | \|E\| | BFS | FW | Dijkstra |
 |:--|--:|--:|--:|--:|--:|
-| barabasi_albert | 500 | 1494 | **4.04 ms** | 113.68 ms | 10.84 ms |
+| Barabási-Albert | 500 | 1494 | **4.04 ms** | 113.68 ms | 10.84 ms |
 | barbell | 500 | 10201 | **6.43 ms** | 55.42 ms | 12.91 ms |
 | complete | 500 | 124750 | **60.93 ms** | 91.45 ms | 126.34 ms |
 | complete_bipartite | 500 | 62500 | **31.40 ms** | 83.49 ms | 66.71 ms |
 | complete_bipartite_imbalanced | 500 | 40000 | **20.78 ms** | 112.44 ms | 45.66 ms |
 | crown | 500 | 62250 | **31.31 ms** | 82.96 ms | 66.13 ms |
 | cycle | 500 | 500 | **2.46 ms** | 50.76 ms | 2.54 ms |
-| er_dense | 500 | 50015 | **27.26 ms** | 119.34 ms | 58.24 ms |
-| er_medium | 500 | 12524 | **9.20 ms** | 115.82 ms | 21.47 ms |
-| er_sparse | 500 | 2520 | **4.98 ms** | 97.53 ms | 12.67 ms |
+| Erdős-Rényi dense | 500 | 50015 | **27.26 ms** | 119.34 ms | 58.24 ms |
+| Erdős-Rényi medium | 500 | 12524 | **9.20 ms** | 115.82 ms | 21.47 ms |
+| Erdős-Rényi sparse | 500 | 2520 | **4.98 ms** | 97.53 ms | 12.67 ms |
 | friendship | 499 | 747 | **1.26 ms** | 90.93 ms | 7.42 ms |
 | grid | 506 | 967 | **1.95 ms** | 57.22 ms | 5.70 ms |
 | hexagonal_lattice | 510 | 734 | **1.98 ms** | 57.47 ms | 5.35 ms |
@@ -302,7 +302,7 @@ Performance across **26** topology families at approximately fixed target vertex
 | stochastic_block_model | 500 | 19431 | **12.54 ms** | 105.33 ms | 27.66 ms |
 | torus | 506 | 1012 | **1.71 ms** | 64.14 ms | 6.11 ms |
 | triangular_lattice | 506 | 1429 | **1.80 ms** | 57.77 ms | 6.34 ms |
-| turan | 500 | 100000 | **49.18 ms** | 112.10 ms | 102.34 ms |
+| Turán | 500 | 100000 | **49.18 ms** | 112.10 ms | 102.34 ms |
 | watts_strogatz | 500 | 1500 | **4.28 ms** | 79.25 ms | 10.89 ms |
 | wheel | 500 | 998 | **1.39 ms** | 92.58 ms | 7.56 ms |
 | windmill_k4 | 499 | 996 | **1.39 ms** | 91.29 ms | 7.65 ms |
@@ -313,16 +313,16 @@ By mean point estimate, BFS is fastest on all 26 `V~500` topology families. The 
 
 | Topology | \|V\| | \|E\| | FW | Dijkstra |
 |:--|--:|--:|--:|--:|
-| barabasi_albert | 500 | 1494 | 120.74 ms | **22.86 ms** |
+| Barabási-Albert | 500 | 1494 | 120.74 ms | **22.86 ms** |
 | barbell | 500 | 10201 | 57.26 ms | **30.29 ms** |
 | complete | 500 | 124750 | **121.09 ms** | 299.04 ms |
 | complete_bipartite | 500 | 62500 | **84.99 ms** | 158.76 ms |
 | complete_bipartite_imbalanced | 500 | 40000 | 114.60 ms | **107.38 ms** |
 | crown | 500 | 62250 | **84.86 ms** | 156.61 ms |
 | cycle | 500 | 500 | 53.13 ms | **3.62 ms** |
-| er_dense | 500 | 50015 | **126.08 ms** | 142.08 ms |
-| er_medium | 500 | 12524 | 125.98 ms | **58.48 ms** |
-| er_sparse | 500 | 2520 | 108.39 ms | **29.08 ms** |
+| Erdős-Rényi dense | 500 | 50015 | **126.08 ms** | 142.08 ms |
+| Erdős-Rényi medium | 500 | 12524 | 125.98 ms | **58.48 ms** |
+| Erdős-Rényi sparse | 500 | 2520 | 108.39 ms | **29.08 ms** |
 | friendship | 499 | 747 | 119.99 ms | **12.63 ms** |
 | grid | 506 | 967 | 59.74 ms | **11.15 ms** |
 | hexagonal_lattice | 510 | 734 | 58.82 ms | **10.73 ms** |
@@ -335,12 +335,12 @@ By mean point estimate, BFS is fastest on all 26 `V~500` topology families. The 
 | stochastic_block_model | 500 | 19431 | 114.49 ms | **73.81 ms** |
 | torus | 506 | 1012 | 65.58 ms | **13.05 ms** |
 | triangular_lattice | 506 | 1429 | 60.78 ms | **17.88 ms** |
-| turan | 500 | 100000 | **114.66 ms** | 246.61 ms |
+| Turán | 500 | 100000 | **114.66 ms** | 246.61 ms |
 | watts_strogatz | 500 | 1500 | 86.02 ms | **21.99 ms** |
 | wheel | 500 | 998 | 123.95 ms | **16.47 ms** |
 | windmill_k4 | 499 | 996 | 120.96 ms | **15.75 ms** |
 
-By mean point estimate, Dijkstra wins **21 of 26** topology families. Floyd-Warshall wins only the five densest configurations: `complete`, `complete_bipartite`, `crown`, `er_dense`, and `turan`. The newly added `windmill_k4` and lattice families are all Dijkstra point-estimate wins at `V~500`.
+By mean point estimate, Dijkstra wins **21 of 26** topology families. Floyd-Warshall wins only the five densest configurations: `complete`, `complete_bipartite`, `crown`, Erdős-Rényi dense, and Turán. The newly added `windmill_k4` and lattice families are all Dijkstra point-estimate wins at `V~500`.
 
 <p align="center">
   <img src="docs/topology_topology_V500.svg" alt="Bar chart comparing all three APSP algorithms across 26 topology families at V~500" width="100%">
@@ -356,8 +356,8 @@ By mean point estimate, Dijkstra wins **21 of 26** topology families. Floyd-Wars
 
 | Family | \|V\| | \|E\| | BFS | FW | Dijkstra | Winner | Speedup |
 |:--|--:|--:|--:|--:|--:|:--|--:|
-| BA `m=2` | 750 | 1497 | **6.98 ms** | 406.89 ms | 24.41 ms | BFS | 58.3x |
-| BA `m=5` | 750 | 3735 | **10.11 ms** | 378.31 ms | 28.37 ms | BFS | 37.4x |
+| Barabási-Albert `m=2` | 750 | 1497 | **6.98 ms** | 406.89 ms | 24.41 ms | BFS | 58.3x |
+| Barabási-Albert `m=5` | 750 | 3735 | **10.11 ms** | 378.31 ms | 28.37 ms | BFS | 37.4x |
 | Watts-Strogatz `k=6` | 750 | 2250 | **9.49 ms** | 281.31 ms | 25.61 ms | BFS | 29.6x |
 | Watts-Strogatz `k=10` | 750 | 3750 | **11.00 ms** | 334.13 ms | 28.93 ms | BFS | 30.4x |
 | Stochastic block model | 500 | 19431 | **12.29 ms** | 107.72 ms | 24.91 ms | BFS | 8.8x |
@@ -374,8 +374,8 @@ The tested Barabási-Albert and Watts-Strogatz families show the same empirical 
 
 | Family | \|V\| | \|E\| | FW | Dijkstra | Winner | Speedup |
 |:--|--:|--:|--:|--:|:--|--:|
-| BA `m=2` | 750 | 1497 | 395.61 ms | **43.30 ms** | Dijkstra | 9.1x |
-| BA `m=5` | 750 | 3735 | 414.08 ms | **68.81 ms** | Dijkstra | 6.0x |
+| Barabási-Albert `m=2` | 750 | 1497 | 395.61 ms | **43.30 ms** | Dijkstra | 9.1x |
+| Barabási-Albert `m=5` | 750 | 3735 | 414.08 ms | **68.81 ms** | Dijkstra | 6.0x |
 | Watts-Strogatz `k=6` | 750 | 2250 | 298.60 ms | **52.26 ms** | Dijkstra | 5.7x |
 | Watts-Strogatz `k=10` | 750 | 3750 | 378.84 ms | **70.49 ms** | Dijkstra | 5.4x |
 | Stochastic block model | 500 | 19431 | 118.35 ms | **74.28 ms** | Dijkstra | 1.6x |

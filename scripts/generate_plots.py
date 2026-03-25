@@ -39,6 +39,24 @@ ALGO_MARKERS = {
     "PairwiseDijkstra": "^",
 }
 
+TOPOLOGY_LABELS = {
+    "barabasi_albert": "Barabási-Albert",
+    "er_sparse": "Erdős-Rényi sparse",
+    "er_medium": "Erdős-Rényi medium",
+    "er_dense": "Erdős-Rényi dense",
+    "turan": "Turán",
+}
+
+
+def format_topology_label(topology: str, multiline: bool = False) -> str:
+    """Return a human-readable topology label for plots."""
+    label = TOPOLOGY_LABELS.get(topology, topology)
+    if multiline:
+        if topology in TOPOLOGY_LABELS:
+            return label.replace("-", " ").replace(" ", "\n")
+        return label.replace("_", "\n")
+    return label
+
 
 def parse_all_results() -> list[dict]:
     """Parse all Criterion benchmark results into a flat list of records."""
@@ -110,6 +128,42 @@ def save_fig(fig, name):
     fig.savefig(DOCS_DIR / f"{name}.png", format="png", bbox_inches="tight", dpi=150)
     print(f"  Saved {name}.svg and {name}.png")
     plt.close(fig)
+
+
+def nudge_lower_row(axes, delta_y: float):
+    """Move the lower row of a 2x2 subplot grid downward."""
+    if len(axes) != 4:
+        return
+
+    for ax in axes[2:]:
+        pos = ax.get_position()
+        ax.set_position([pos.x0, pos.y0 - delta_y, pos.width, pos.height])
+
+
+def tighten_grid_center_gap(axes, delta_x: float, delta_y: float):
+    """Expand a 2x2 grid inward toward the center to reduce whitespace."""
+    if len(axes) != 4:
+        return
+
+    # Left column: grow to the right.
+    for ax in (axes[0], axes[2]):
+        pos = ax.get_position()
+        ax.set_position([pos.x0, pos.y0, pos.width + delta_x, pos.height])
+
+    # Right column: grow to the left.
+    for ax in (axes[1], axes[3]):
+        pos = ax.get_position()
+        ax.set_position([pos.x0 - delta_x, pos.y0, pos.width + delta_x, pos.height])
+
+    # Top row: grow downward.
+    for ax in (axes[0], axes[1]):
+        pos = ax.get_position()
+        ax.set_position([pos.x0, pos.y0 - delta_y, pos.width, pos.height + delta_y])
+
+    # Bottom row: grow upward.
+    for ax in (axes[2], axes[3]):
+        pos = ax.get_position()
+        ax.set_position([pos.x0, pos.y0, pos.width, pos.height + delta_y])
 
 
 # ---------------------------------------------------------------------------
@@ -286,7 +340,12 @@ def plot_topology_comparison(records):
         ax.set_ylabel("Time (ms)")
         ax.set_title(f"Topology Comparison ({title})", fontsize=14, fontweight="bold")
         ax.set_xticks(x + width)
-        ax.set_xticklabels(topologies, rotation=45, ha="right", fontsize=9)
+        ax.set_xticklabels(
+            [format_topology_label(t) for t in topologies],
+            rotation=45,
+            ha="right",
+            fontsize=9,
+        )
         ax.legend(fontsize=9)
         fig.tight_layout()
         save_fig(fig, f"topology_{group_name}")
@@ -321,7 +380,7 @@ def plot_radar(records):
 
         topologies = sorted(topo_map.keys())
         # Replace underscores with newlines for multi-line labels
-        display_labels = [t.replace("_", "\n") for t in topologies]
+        display_labels = [format_topology_label(t, multiline=True) for t in topologies]
         n = len(topologies)
         angles = np.linspace(0, 2 * np.pi, n, endpoint=False).tolist()
         angles.append(angles[0])
@@ -356,8 +415,17 @@ def plot_radar(records):
 
     handles, labels = axes[0].get_legend_handles_labels()
     if handles:
-        fig.legend(handles, labels, loc="lower center", ncol=3, fontsize=12)
-    fig.tight_layout(rect=[0, 0.04, 1, 0.96])
+        fig.legend(
+            handles,
+            labels,
+            loc="lower center",
+            bbox_to_anchor=(0.5, 0.03),
+            ncol=3,
+            fontsize=12,
+        )
+    fig.tight_layout(rect=[0, 0.09, 1, 0.96])
+    nudge_lower_row(axes, 0.03)
+    tighten_grid_center_gap(axes, 0.05, 0.03)
     save_fig(fig, "radar_triptych")
 
 
@@ -387,7 +455,7 @@ def plot_radar_weighted(records):
             topo_map[topo][r["algorithm"]] = r["mean_ns"]
 
         topologies = sorted(topo_map.keys())
-        display_labels = [t.replace("_", "\n") for t in topologies]
+        display_labels = [format_topology_label(t, multiline=True) for t in topologies]
         n = len(topologies)
         angles = np.linspace(0, 2 * np.pi, n, endpoint=False).tolist()
         angles.append(angles[0])
@@ -420,8 +488,17 @@ def plot_radar_weighted(records):
 
     handles, labels = axes[0].get_legend_handles_labels()
     if handles:
-        fig.legend(handles, labels, loc="lower center", ncol=2, fontsize=12)
-    fig.tight_layout(rect=[0, 0.04, 1, 0.96])
+        fig.legend(
+            handles,
+            labels,
+            loc="lower center",
+            bbox_to_anchor=(0.5, 0.03),
+            ncol=2,
+            fontsize=12,
+        )
+    fig.tight_layout(rect=[0, 0.09, 1, 0.96])
+    nudge_lower_row(axes, 0.03)
+    tighten_grid_center_gap(axes, 0.05, 0.03)
     save_fig(fig, "radar_weighted")
 
 
@@ -503,10 +580,10 @@ def plot_extreme_cases_weighted(records):
 def plot_realworld(records):
     """Scaling for real-world graph models."""
     groups = [
-        ("realworld_barabasi_albert_m2", "BA (m=2)"),
-        ("realworld_barabasi_albert_m5", "BA (m=5)"),
-        ("realworld_watts_strogatz_k6", "WS (k=6)"),
-        ("realworld_watts_strogatz_k10", "WS (k=10)"),
+        ("realworld_barabasi_albert_m2", "Barabási-Albert\n(m=2)"),
+        ("realworld_barabasi_albert_m5", "Barabási-Albert\n(m=5)"),
+        ("realworld_watts_strogatz_k6", "Watts-Strogatz\n(k=6)"),
+        ("realworld_watts_strogatz_k10", "Watts-Strogatz\n(k=10)"),
         ("realworld_stochastic_block_model", "SBM"),
         ("realworld_random_geometric", "RGG"),
         ("realworld_random_regular_k4", "RR (k=4)"),
@@ -547,10 +624,10 @@ def plot_realworld(records):
 def plot_realworld_weighted(records):
     """Scaling for real-world graph models, weighted variant."""
     groups = [
-        ("realworld_barabasi_albert_m2_weighted", "BA (m=2)"),
-        ("realworld_barabasi_albert_m5_weighted", "BA (m=5)"),
-        ("realworld_watts_strogatz_k6_weighted", "WS (k=6)"),
-        ("realworld_watts_strogatz_k10_weighted", "WS (k=10)"),
+        ("realworld_barabasi_albert_m2_weighted", "Barabási-Albert\n(m=2)"),
+        ("realworld_barabasi_albert_m5_weighted", "Barabási-Albert\n(m=5)"),
+        ("realworld_watts_strogatz_k6_weighted", "Watts-Strogatz\n(k=6)"),
+        ("realworld_watts_strogatz_k10_weighted", "Watts-Strogatz\n(k=10)"),
         ("realworld_stochastic_block_model_weighted", "SBM"),
         ("realworld_random_geometric_weighted", "RGG"),
         ("realworld_random_regular_k4_weighted", "RR (k=4)"),
@@ -646,7 +723,7 @@ def plot_speedup_heatmap(records):
     ax.set_xticks(range(n_sizes))
     ax.set_xticklabels(size_labels)
     ax.set_yticks(range(n_topos))
-    ax.set_yticklabels(topologies, fontsize=9)
+    ax.set_yticklabels([format_topology_label(t) for t in topologies], fontsize=9)
     ax.set_title("Floyd-Warshall / BFS Slowdown Factor\n(higher = BFS is faster)",
                  fontsize=13, fontweight="bold")
     fig.colorbar(im, ax=ax, label="FW / BFS ratio", shrink=0.8)
@@ -708,7 +785,8 @@ def print_summary(records):
     for topo in sorted(topo_map.keys()):
         best_algo = min(topo_map[topo], key=topo_map[topo].get)
         best_time = topo_map[topo][best_algo]
-        print(f"    {topo:25s} -> {ALGO_LABELS[best_algo]:20s} ({best_time:.2f} ms)")
+        label = format_topology_label(topo)
+        print(f"    {label:25s} -> {ALGO_LABELS[best_algo]:20s} ({best_time:.2f} ms)")
 
     print("=" * 70)
 

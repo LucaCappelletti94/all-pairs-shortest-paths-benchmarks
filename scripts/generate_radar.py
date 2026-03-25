@@ -105,6 +105,19 @@ def group_by_size(
 ALGORITHMS = ["FloydWarshall", "PairwiseBFS", "PairwiseDijkstra"]
 COLORS = {"FloydWarshall": "#e74c3c", "PairwiseBFS": "#3498db", "PairwiseDijkstra": "#2ecc71"}
 LABELS = {"FloydWarshall": "Floyd-Warshall", "PairwiseBFS": "Pairwise BFS", "PairwiseDijkstra": "Pairwise Dijkstra"}
+TOPOLOGY_LABELS = {
+    "barabasi_albert": "Barabási-Albert",
+    "er_sparse": "Erdős-Rényi sparse",
+    "er_medium": "Erdős-Rényi medium",
+    "er_dense": "Erdős-Rényi dense",
+    "turan": "Turán",
+}
+
+
+def format_topology_label(topology: str) -> str:
+    """Return a human-readable topology label."""
+    label = TOPOLOGY_LABELS.get(topology, topology)
+    return label.replace("-", " ").replace("_", "\n").replace(" ", "\n")
 
 
 def draw_radar_panel(ax, title: str, topologies: list[str], data: dict[str, dict[str, float]]):
@@ -122,7 +135,7 @@ def draw_radar_panel(ax, title: str, topologies: list[str], data: dict[str, dict
     ax.set_rlabel_position(0)
 
     ax.set_xticks(angles[:-1])
-    ax.set_xticklabels(topologies, size=7)
+    ax.set_xticklabels([format_topology_label(t) for t in topologies], size=7)
     ax.set_title(title, size=12, fontweight="bold", pad=20)
 
     # Compute log-scale normalized values (larger = faster = better)
